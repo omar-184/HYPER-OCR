@@ -1,0 +1,11 @@
+# Unlimited-OCR on an NVIDIA GPU. Install PyTorch with CUDA first:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+# Versions follow Baidu's tested set (https://github.com/baidu/Unlimited-OCR).
+transformers==4.57.1
+einops>=0.8
+addict>=2.4
+easydict>=1.13
+matplotlib>=3.8
+psutil>=5.9
+safetensors>=0.4
+huggingface_hub>=0.25

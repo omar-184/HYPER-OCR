@@ -1,0 +1,107 @@
+/* Generated from design-system/tokens.json by design-system/build_css.py. Do not edit. */
+
+:root {
+  --bg: #f3f4f6;
+  --card: #ffffff;
+  --field: #ffffff;
+  --text: #111827;
+  --muted: #4b5563;
+  --line: #d1d5db;
+  --line-strong: #7c8594;
+  --accent: #0f6b37;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcf2e4;
+  --ok-bg: #e7f6ec;
+  --ok-ink: #0b3d20;
+  --warn-bg: #fff3cd;
+  --warn-ink: #5c3a00;
+  --warn-line: #b7791f;
+  --error-bg: #fde2e2;
+  --error-ink: #8a1111;
+  --fixed-bg: #dbeafe;
+  --fixed-line: #1d4ed8;
+  --sheet: #ffffff;
+  --sheet-ink: #000000;
+  --shadow: 0 1px 4px rgba(0, 0, 0, .18);
+  --space-2: 2px;
+  --space-4: 4px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-10: 10px;
+  --space-12: 12px;
+  --space-14: 14px;
+  --space-16: 16px;
+  --space-18: 18px;
+  --space-20: 20px;
+  --space-24: 24px;
+  --space-28: 28px;
+  --space-32: 32px;
+  --radius-swatch: 4px;
+  --radius-cell: 6px;
+  --radius-field: 8px;
+  --radius-control: 10px;
+  --radius: 12px;
+  --radius-card-phone: 14px;
+  --radius-pill: 999px;
+  --control-touch: 44px;
+  --control: 40px;
+  --control-cell: 34px;
+  --page-max: 1100px;
+  --breakpoint-phone: 700px;
+  --font-sans: "Segoe UI", system-ui, -apple-system, Tahoma, Arial, sans-serif;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #000000;
+    --card: #141414;
+    --field: #0c0c0c;
+    --text: #e2e2e2;
+    --muted: #9a9a9a;
+    --line: #262626;
+    --line-strong: #666666;
+    --accent: #55c08c;
+    --accent-ink: #06140c;
+    --accent-soft: #132a1d;
+    --ok-bg: #122519;
+    --ok-ink: #bde3ca;
+    --warn-bg: #292111;
+    --warn-ink: #e6c47c;
+    --warn-line: #c99a3d;
+    --error-bg: #2b1717;
+    --error-ink: #e8a0a0;
+    --fixed-bg: #14233a;
+    --fixed-line: #6f9fd6;
+    --sheet: #ffffff;
+    --sheet-ink: #000000;
+    --shadow: 0 0 0 1px #222222;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --card: #141414;
+  --field: #0c0c0c;
+  --text: #e2e2e2;
+  --muted: #9a9a9a;
+  --line: #262626;
+  --line-strong: #666666;
+  --accent: #55c08c;
+  --accent-ink: #06140c;
+  --accent-soft: #132a1d;
+  --ok-bg: #122519;
+  --ok-ink: #bde3ca;
+  --warn-bg: #292111;
+  --warn-ink: #e6c47c;
+  --warn-line: #c99a3d;
+  --error-bg: #2b1717;
+  --error-ink: #e8a0a0;
+  --fixed-bg: #14233a;
+  --fixed-line: #6f9fd6;
+  --sheet: #ffffff;
+  --sheet-ink: #000000;
+  --shadow: 0 0 0 1px #222222;
+  color-scheme: dark;
+}

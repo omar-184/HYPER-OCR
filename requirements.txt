@@ -1,0 +1,17 @@
+# HYPER-OCR core (works on any computer, CPU only)
+pymupdf>=1.26
+flask>=3.0
+waitress>=3.0
+python-docx>=1.1
+# MarkItDown is installed separately with --no-deps (see setup): its file-type guesser,
+# magika, needs onnxruntime, which makes telemetry connections. These are the rest of its needs:
+beautifulsoup4>=4.12
+markdownify>=0.11
+charset-normalizer>=3.0
+defusedxml>=0.7
+requests>=2.31
+opencv-python-headless>=4.9
+numpy>=1.26
+pillow>=10.0
+pytesseract>=0.3.10
+python-bidi>=0.5

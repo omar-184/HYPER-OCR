@@ -1,0 +1,28 @@
+/* HYPER-OCR layout on top of the Attendance Register design system (tokens.css, components.css). */
+
+a.btn { text-decoration: none; }
+a.btn[aria-disabled="true"] { opacity: .55; pointer-events: none; }
+.mono { font-family: ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace; font-size: 13px; font-weight: 400; }
+
+.settings-grid { margin-top: 4px; }
+.settings-grid select { width: 100%; }
+
+.lang-group { margin-top: 16px; }
+.lang-group h3, .result-part h3 { margin: 0 0 4px; font-size: 15px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.lang-group .hint { margin-top: 0; }
+.lang-list { display: flex; flex-wrap: wrap; gap: 0 22px; }
+.lang-list .check { margin-top: 2px; }
+
+.result-part { margin-top: 22px; }
+.result-part .text-preview { margin-top: 6px; }
+.src-item .src-head a.btn { min-height: 40px; padding: 6px 14px; }
+
+#progress { margin-top: 4px; }
+#progress-engine { color: var(--muted); }
+
+@media (max-width: 700px) {
+  .result-part { margin-top: 18px; }
+  .row a.btn { flex: 1 1 100%; }
+}
+
+.drop.disabled { opacity: .55; pointer-events: none; }

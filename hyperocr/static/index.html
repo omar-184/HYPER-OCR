@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" id="theme-color" content="#f3f4f6">
+<title>HYPER-OCR</title>
+<link rel="stylesheet" href="/static/tokens.css">
+<link rel="stylesheet" href="/static/components.css">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <h1 data-i18n="title">HYPER-OCR</h1>
+    <p data-i18n="subtitle"></p>
+  </div>
+  <div class="top-actions">
+    <button type="button" class="icon-btn" id="theme-btn">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>
+      <span id="theme-label"></span>
+    </button>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="en">English</button>
+      <button type="button" data-lang="ar">العربية</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="card" id="step-file">
+    <h2><span class="num">1</span><span data-i18n="fileTitle"></span></h2>
+    <div id="file-list" class="src-list" hidden>
+      <div class="src-item">
+        <div class="src-head">
+          <span class="badge" id="file-badge">PDF</span>
+          <span class="file-name"><bdi id="file-name"></bdi></span>
+          <button type="button" class="icon-x" id="file-remove">×</button>
+        </div>
+        <span class="muted" id="file-meta" dir="auto"></span>
+      </div>
+    </div>
+    <label class="drop" id="drop">
+      <input type="file" id="file-input" accept=".pdf,application/pdf">
+      <strong id="drop-title" data-i18n="filePick"></strong>
+      <span data-i18n="fileHint"></span>
+    </label>
+    <p id="file-error" class="msg error" hidden></p>
+  </section>
+
+  <section class="card" id="step-settings">
+    <h2><span class="num">2</span><span data-i18n="setTitle"></span></h2>
+    <p id="engine-status" class="msg" role="status" hidden></p>
+    <div class="class-grid settings-grid">
+      <label><span data-i18n="setEngine"></span>
+        <select id="engine">
+          <option value="auto" data-i18n="engAuto"></option>
+          <option value="unlimited" data-i18n="engGpu"></option>
+          <option value="unlimited-server" data-i18n="engServer" hidden></option>
+          <option value="tesseract" data-i18n="engCpu"></option>
+        </select>
+      </label>
+      <label><span data-i18n="setDpi"></span>
+        <select id="dpi">
+          <option value="300" data-i18n="dpi300"></option>
+          <option value="200" data-i18n="dpi200"></option>
+          <option value="400" data-i18n="dpi400"></option>
+        </select>
+      </label>
+    </div>
+    <div class="lang-group" id="lang-group">
+      <h3 data-i18n="setLangs"></h3>
+      <p class="hint" data-i18n="setLangsHint"></p>
+      <div id="lang-list" class="lang-list"></div>
+    </div>
+    <label class="check"><input type="checkbox" id="opt-snapshot" checked><span data-i18n="optSnapshot"></span></label>
+    <label class="check"><input type="checkbox" id="opt-furniture" checked><span data-i18n="optFurniture"></span></label>
+    <div class="row">
+      <button type="button" class="btn primary" id="start" data-i18n="start" disabled></button>
+    </div>
+    <p id="start-hint" class="hint" data-i18n="startHint"></p>
+  </section>
+
+  <section class="card" id="step-progress" hidden>
+    <h2><span class="num">3</span><span data-i18n="progTitle"></span></h2>
+    <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progress-bar"></span></div>
+    <div class="progress-label"><span><strong id="progress-stage"></strong><span id="progress-engine"></span></span><span id="progress-count"></span></div>
+    <div class="row">
+      <button type="button" class="btn secondary" id="cancel" data-i18n="cancel"></button>
+    </div>
+    <p id="job-error" class="msg error" role="alert" hidden></p>
+  </section>
+
+  <section class="card" id="step-results" hidden>
+    <h2><span class="num">4</span><span data-i18n="resTitle"></span></h2>
+    <ul class="stats" id="stats"></ul>
+    <div id="warnings"></div>
+    <div class="row">
+      <a class="btn primary" id="dl-zip" href="#" download data-i18n="dlZip"></a>
+      <a class="btn secondary" id="dl-pdf" href="#" download data-i18n="dlPdf"></a>
+      <a class="btn secondary" id="dl-md" href="#" download data-i18n="dlMd"></a>
+      <button type="button" class="btn link" id="again" data-i18n="again"></button>
+    </div>
+    <p class="hint" data-i18n="zipHint"></p>
+
+    <div class="result-part" id="images-part">
+      <h3><span data-i18n="resImages"></span> <span class="muted mono" dir="ltr">Images/</span></h3>
+      <div class="thumbs" id="thumbs"></div>
+      <p class="hint" id="no-images" data-i18n="noImages" hidden></p>
+    </div>
+
+    <div class="result-part" id="tables-part">
+      <h3><span data-i18n="resTables"></span> <span class="muted mono" dir="ltr">Tables/</span></h3>
+      <div class="src-list" id="table-list"></div>
+      <p class="hint" id="no-tables" data-i18n="noTables" hidden></p>
+    </div>
+
+    <div class="result-part">
+      <h3><span data-i18n="resMarkdown"></span> <span class="muted mono" id="md-name" dir="ltr"></span></h3>
+      <pre class="text-preview" id="md-preview"></pre>
+      <p class="hint" id="md-truncated" data-i18n="mdTruncated" hidden></p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot" data-i18n="footer"></footer>
+
+<div class="mobile-bar" id="mobile-bar" hidden>
+  <a class="btn primary" id="m-zip" href="#" download data-i18n="dlZipShort"></a>
+  <button type="button" class="btn secondary" id="m-again" data-i18n="againShort"></button>
+</div>
+
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+"""One conversion: scanned PDF in; searchable PDF, Markdown, Images/ and Tables/ out."""
+
+from __future__ import annotations
+
+import re
+import threading
+import time
+import unicodedata
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable
+
+import numpy as np
+import pymupdf
+
+from . import __version__, engines
+from .document import CAPTION, FIGURE, HEADING, TABLE, TITLE, Block, PageResult
+from .engines.base import EngineError, Options
+from .outputs import images as img_out
+from .outputs.markdown import to_markdown
+from .outputs.tables import write_table_docx
+from .outputs.tablegrid import parse_table
+from .outputs.textlayer import TextLayerWriter, page_text_kind, remove_invisible_text
+
+MAX_SIDE_PX = 7000   # pages larger than this (posters, plans) are read at a lower resolution
+
+Report = Callable[[dict], None]
+
+
+class Cancelled(Exception):
+    pass
+
+
+@dataclass
+class Output:
+    folder: Path
+    zip_path: Path
+    pdf_file: str
+    md_file: str
+    title: str
+    engine: str
+    pages: int = 0
+    words: int = 0
+    images: list[str] = field(default_factory=list)
+    tables: list[dict] = field(default_factory=list)
+    warnings: list[dict] = field(default_factory=list)
+    markdown: str = ""
+    seconds: float = 0.0
+
+
+def safe_stem(name: str) -> str:
+    stem = Path(name).stem
+    stem = unicodedata.normalize("NFC", stem)
+    stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", stem).strip(" .")
+    return stem[:80] or "document"
+
+
+def convert(pdf_path: Path, work: Path, options: Options, report: Report,
+            cancel: threading.Event | None = None, original_name: str | None = None) -> Output:
+    started = time.time()
+    cancel = cancel or threading.Event()
+    name = original_name or pdf_path.name
+    stem = safe_stem(name)
+    report({"stage": "opening"})
+
+    try:
+        doc = pymupdf.open(pdf_path)
+    except Exception as exc:
+        raise EngineError("notPdf", str(exc)) from exc
+    if doc.needs_pass and not doc.authenticate(""):
+        raise EngineError("passwordProtected")
+    if not doc.is_pdf:
+        raise EngineError("notPdf")
+    if doc.page_count == 0:
+        raise EngineError("emptyPdf")
+
+    engine, passed_over = engines.choose(options)
+    out = Output(
+        folder=work / stem, zip_path=work / (stem + "_HYPER-OCR.zip"),
+        pdf_file=stem + "_searchable.pdf", md_file=stem + ".md", title=stem, engine=engine.id,
+    )
+    if passed_over is not None:
+        out.warnings.append({"key": "usedCpu", "reason": passed_over.reason, "detail": passed_over.detail})
+    out.folder.mkdir(parents=True, exist_ok=True)
+    (out.folder / "Images").mkdir(exist_ok=True)
+    (out.folder / "Tables").mkdir(exist_ok=True)
+
+    engine.prepare(lambda stage: report({"stage": stage}))
+    writer = TextLayerWriter(doc)
+    pages: list[PageResult] = []
+    had_text: list[int] = []
+    empty: list[int] = []
+    width = max(3, len(str(doc.page_count)))
+    table_no = 0
+
+    for i in range(doc.page_count):
+        if cancel.is_set():
+            raise Cancelled()
+        page = doc[i]
+        report({"stage": "reading", "page": i + 1, "pages": doc.page_count})
+        dpi = _page_dpi(page, options.dpi)
+        pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csRGB, alpha=False)
+        image = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, 3).copy()
+        del pix
+        result = engine.process(image, i, dpi, options)
+        if cancel.is_set():
+            raise Cancelled()
+
+        # Images/
+        scan_dpi = img_out.native_dpi(page)
+        figure_no = 0
+        for j, block in enumerate(result.blocks):
+            if block.kind != FIGURE:
+                continue
+            figure_no += 1
+            picture = img_out.crop(page, image, block.box, dpi, scan_dpi)
+            file = img_out.save(picture, out.folder / "Images", "page-%0*d_figure-%02d" % (width, i + 1, figure_no))
+            block.figure_file = "Images/" + file
+            caption = _caption(result.blocks, j)
+            block.text = caption or "Figure %d, page %d" % (figure_no, i + 1)
+            out.images.append(block.figure_file)
+
+        # Tables/
+        for j, block in enumerate(result.blocks):
+            if block.kind != TABLE or not block.html:
+                continue
+            table_no += 1
+            file = "Table-%02d_page-%0*d.docx" % (table_no, width, i + 1)
+            snapshot = None
+            if options.table_snapshot:
+                snapshot = img_out.png_bytes(img_out.crop(page, image, _pad(block.box, dpi, image), dpi, 0))
+            write_table_docx(
+                out.folder / "Tables" / file, block.html, table_no, i + 1, name,
+                caption=_caption(result.blocks, j), snapshot_png=snapshot, ui_lang=options.ui_lang,
+            )
+            block.table_file = "Tables/" + file
+            grid = parse_table(block.html)
+            out.tables.append({"file": block.table_file, "page": i + 1, "rows": grid.rows, "cols": grid.cols})
+
+        # Searchable text layer
+        existing = page_text_kind(page)
+        if existing == "visible":
+            had_text.append(i + 1)          # born-digital page: its own text is already searchable
+        else:
+            if existing == "invisible":
+                remove_invisible_text(page)  # replace an older OCR layer
+            writer.add(page, result)
+        if not result.lines:
+            empty.append(i + 1)
+        out.words += result.word_count
+        pages.append(result)
+        del image
+
+    if had_text:
+        out.warnings.append({"key": "keptText", "pages": had_text})
+    if empty:
+        out.warnings.append({"key": "noText", "pages": empty})
+
+    out.pages = doc.page_count
+    out.title = _title(pages, doc, stem)
+
+    report({"stage": "writing-pdf"})
+    _bookmarks(doc, pages)
+    meta = dict(doc.metadata or {})
+    meta.update({"producer": "HYPER-OCR %s (offline OCR)" % __version__, "creator": meta.get("creator") or "HYPER-OCR"})
+    if not meta.get("title"):
+        meta["title"] = out.title
+    doc.set_metadata({k: v for k, v in meta.items() if k in (
+        "author", "producer", "creator", "title", "format", "encryption", "creationDate", "modDate", "subject", "keywords", "trapped")})
+    doc.save(out.folder / out.pdf_file, garbage=3, deflate=True)
+    doc.close()
+
+    report({"stage": "writing-markdown"})
+    out.markdown = to_markdown(pages, out.title, options.skip_furniture, options.ui_lang)
+    (out.folder / out.md_file).write_text(out.markdown, encoding="utf-8")
+
+    report({"stage": "packing"})
+    _zip(out.folder, out.zip_path)
+    out.seconds = round(time.time() - started, 1)
+    report({"stage": "done"})
+    return out
+
+
+def _page_dpi(page: pymupdf.Page, dpi: int) -> int:
+    longest = max(page.rect.width, page.rect.height) / 72.0
+    if longest * dpi > MAX_SIDE_PX:
+        return max(72, int(MAX_SIDE_PX / longest))
+    return dpi
+
+
+def _pad(box, dpi, image):
+    pad = dpi * 0.04
+    h, w = image.shape[:2]
+    return (max(0, box[0] - pad), max(0, box[1] - pad), min(w, box[2] + pad), min(h, box[3] + pad))
+
+
+def _caption(blocks: list[Block], index: int) -> str:
+    for j in (index + 1, index - 1):
+        if 0 <= j < len(blocks) and blocks[j].kind == CAPTION:
+            return blocks[j].text
+    return ""
+
+
+def _title(pages: list[PageResult], doc: pymupdf.Document, stem: str) -> str:
+    for page in pages[:3]:
+        for b in page.blocks:
+            if b.kind == TITLE and b.text.strip():
+                return b.text.strip()[:200]
+    meta = (doc.metadata or {}).get("title") or ""
+    return meta.strip() or stem
+
+
+def _bookmarks(doc: pymupdf.Document, pages: list[PageResult]) -> None:
+    """Headings become the PDF's bookmarks (unless it already has some)."""
+    if doc.get_toc():
+        return
+    entries = []
+    for page in pages:
+        for b in page.blocks:
+            if b.kind == TITLE or (b.kind == HEADING and b.level <= 3):
+                text = " ".join(b.text.split())[:120]
+                if text:
+                    entries.append([1 if b.kind == TITLE else b.level, text, page.index + 1])
+    if not entries:
+        return
+    top = min(e[0] for e in entries)
+    prev = 0
+    for e in entries:
+        e[0] = min(e[0] - top + 1, prev + 1)
+        prev = e[0]
+    try:
+        doc.set_toc(entries)
+    except Exception:
+        pass  # bookmarks are a convenience; never fail a conversion over them
+
+
+def _zip(folder: Path, target: Path) -> None:
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+        z.writestr(folder.name + "/Images/", "")
+        z.writestr(folder.name + "/Tables/", "")
+        for f in sorted(folder.rglob("*")):
+            if f.is_file():
+                z.write(f, Path(folder.name) / f.relative_to(folder))
