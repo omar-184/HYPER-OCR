@@ -49,7 +49,9 @@ jobs:
           python -m pip install -r requirements-dev.txt
           python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
       - name: Tesseract 5.4.0 and its languages, as the desktop app has them (pinned, checked)
-        run: python tools/build_desktop.py tesseract build/ocr
+        run: |
+          python -m pip install "pefile>=2023.2"
+          python tools/build_desktop.py tesseract build/ocr
       - run: python -m pytest -q
         env:
           HYPEROCR_TESSERACT: ${{ github.workspace }}\build\ocr\tesseract\tesseract.exe
@@ -97,6 +99,12 @@ jobs:
           $report = Get-Content "$out\self-test.json" -Raw -Encoding utf8 | ConvertFrom-Json
           if ($t.ExitCode -ne 0 -or -not $report.markdown.StartsWith("# تقرير المتابعة الطبية")) { throw "installed self-test failed: $($report.error)" }
           "Installed self-test: Tesseract $($report.tesseract_version), $($report.pages) page"
+          # The Update button's helper: a window app reporting back through a pipe, as the app reads it.
+          $upd = Join-Path $env:RUNNER_TEMP "update-check.json"
+          $c = Start-Process "$dir\HYPER-OCR.exe" -ArgumentList '--update', '--check', '--json' -RedirectStandardOutput $upd -Wait -PassThru
+          $state = Get-Content $upd -Raw | ConvertFrom-Json
+          if ($c.ExitCode -ne 0 -or -not $state.current) { throw "update check failed: $(Get-Content $upd -Raw)" }
+          "Update check: this is $($state.current); latest release $($state.latest); newer available: $($state.available)"
           $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           Start-Sleep 3
           if (Test-Path "$dir\HYPER-OCR.exe") { throw "uninstall left the app behind" }

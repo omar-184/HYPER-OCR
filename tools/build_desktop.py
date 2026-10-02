@@ -86,9 +86,34 @@ def seven_zip() -> str:
     raise SystemExit("7-Zip is needed to unpack Tesseract's installer.")
 
 
+def needed_dlls(folder: Path, program: str = "tesseract.exe") -> set[str]:
+    """The DLLs `program` loads, directly or through another DLL, among those in `folder`.
+    UB Mannheim's build also carries those of Tesseract's training tools (GLib, Pango, cairo,
+    ICU...): 25 files, 46 MB the app never loads."""
+    import pefile
+
+    present = {p.name.lower(): p for p in folder.iterdir()}
+    needed: set[str] = set()
+    todo = [program.lower()]
+    while todo:
+        name = todo.pop()
+        if name in needed:
+            continue
+        needed.add(name)
+        pe = pefile.PE(str(present[name]), fast_load=True)
+        pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_IMPORT"],
+                                               pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT"]])
+        for entry in ("DIRECTORY_ENTRY_IMPORT", "DIRECTORY_ENTRY_DELAY_IMPORT"):
+            for imported in getattr(pe, entry, []):
+                dll = imported.dll.decode("ascii", "replace").lower()
+                if dll in present:
+                    todo.append(dll)        # system DLLs (KERNEL32, msvcrt...) aren't in the folder
+    return {present[n].name for n in needed}
+
+
 def add_tesseract(dest: Path) -> Path:
-    """Tesseract's program and libraries (no training tools, no languages: those come next),
-    with its licence, unpacked from the pinned installer."""
+    """Tesseract's program and the libraries it loads (no training tools, no languages: those
+    come next), with its licence, unpacked from the pinned installer."""
     setup = fetch(TESSERACT["url"], TESSERACT["sha256"], Path(TESSERACT["url"]).name)
     target = dest / "tesseract"
     if target.exists():
@@ -99,9 +124,8 @@ def add_tesseract(dest: Path) -> Path:
     subprocess.run([seven_zip(), "x", "-y", "-o%s" % unpacked, str(setup), "tesseract.exe", "*.dll", "doc"],
                    check=True, stdout=subprocess.DEVNULL)
     target.mkdir(parents=True)
-    for item in unpacked.iterdir():
-        if item.name == "tesseract.exe" or item.suffix.lower() == ".dll":
-            shutil.copy2(item, target / item.name)
+    for name in sorted(needed_dlls(unpacked)):
+        shutil.copy2(unpacked / name, target / name)
     shutil.copytree(unpacked / "doc", target / "doc")
     return target / "tesseract.exe"
 

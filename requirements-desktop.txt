@@ -1,3 +1,4 @@
 # The desktop app (tools/build_desktop.py): its window and its packaging.
 pywebview>=6.2,<7        # the window: Microsoft Edge WebView2 on Windows (BSD licence)
 pyinstaller>=6.10,<7     # packs Python and the app into HYPER-OCR.exe (GPL with a bundling exception)
+pefile>=2023.2         # the build reads which DLLs Tesseract loads, to leave the others out (MIT)
