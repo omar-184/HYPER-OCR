@@ -9,3 +9,4 @@ tessdata/
 tesseract/
 *.part
 design-system/build/
+dist/

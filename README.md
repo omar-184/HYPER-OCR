@@ -98,10 +98,15 @@ You download HYPER-OCR once. After that, updates replace only the app's own file
 
 What an update does:
 
-1. Reads the version number in `hyperocr/__init__.py` on the repository's default branch, and compares it with yours.
-2. Downloads that branch as a ZIP and copies its files over the app. Files that were removed from the app are removed here too. `.venv`, `models`, `tessdata`, `tesseract` and `.backup` are never touched.
-3. Keeps the previous version in `.backup/<version>/`. If anything fails while files are being copied, that backup is put back.
-4. Reinstalls packages only when the new version's `requirements.txt` differs. The GPU packages are never downloaded unless the experimental GPU engine is switched on.
+1. Asks GitHub for the latest **published release** of HYPER-OCR and compares its version with yours. Work in progress on a branch is never installed; nor are drafts or pre-releases.
+2. Downloads the release's `HYPER-OCR-<version>.zip` and checks it against the SHA-256 published with it. A download that doesn't match is refused.
+3. If the new version needs different packages, installs them first. If that fails (no internet, a package missing for your Python), it stops there and nothing has changed.
+4. Copies the new version's files over the app and removes app files it no longer has. Only the app's own files and folders are touched: `.venv`, `models`, `tessdata`, `tesseract`, `.backup` and any folder of your own stay as they are.
+5. Keeps the files it replaced in `.backup/<version>/` (only the last update's backup is kept). If anything fails while copying, they are put back.
+
+The GPU packages are never downloaded unless the experimental GPU engine is switched on.
+
+**Publishing a release (for the maintainer).** Commit, set the version in `hyperocr/__init__.py`, run `python tools/make_release.py`, then create a GitHub Release tagged `v<version>` on that commit with the two files from `dist/` attached. Nothing reaches users before that.
 
 Updating is the only thing in HYPER-OCR that goes online, and only when you click it. It runs as a separate program; the converter itself stays offline. The app is started by a small supervisor, so after an update it comes back on its own at the same address.
 

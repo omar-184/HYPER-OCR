@@ -1,5 +1,6 @@
 """The in-app updater, against a local stand-in for GitHub's API."""
 
+import hashlib
 import io
 import json
 import os
@@ -29,24 +30,66 @@ def _copy_app(dest):
     return dest
 
 
-def _newer_zip(app, version="9.9.0"):
-    """GitHub's zipball layout: everything inside owner-repo-sha/."""
+def _newer_zip(app, version="9.9.0", requirements_extra=""):
+    """A release zip as tools/make_release.py builds it: everything inside HYPER-OCR-<version>/."""
     buf = io.BytesIO()
-    top = "omar-184-HYPER-OCR-abc1234/"
+    top = "HYPER-OCR-%s/" % version
     with zipfile.ZipFile(buf, "w") as z:
         for path in sorted(app.rglob("*")):
             rel = path.relative_to(app).as_posix()
-            if path.is_dir() or "__pycache__" in rel or rel == "hyperocr/static/icon.svg":
+            if path.is_dir() or "__pycache__" in rel or rel == "hyperocr/static/icon.svg" \
+                    or rel.split("/")[0] in ("models", ".venv", "My scans", ".backup"):
                 continue                                    # icon.svg: a file the new version dropped
             data = path.read_bytes()
             if rel == "hyperocr/__init__.py":
                 data = data.replace(__version__.encode(), version.encode())
             if rel == "README.md":
                 data += b"\nNew in 9.9.0.\n"
+            if rel == "requirements.txt":
+                data += requirements_extra.encode()
             z.writestr(top + rel, data)
         z.writestr(top + "hyperocr/brand_new.py", "X = 1\n")
         z.writestr(top + "models/should-not-arrive.txt", "no")
     return buf.getvalue()
+
+
+class FakeGitHub:
+    """GitHub's releases API and download server, on this computer."""
+
+    def __init__(self, app):
+        self.app = app
+        self.release = None          # None: nothing published yet
+        self.files = {}
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if self.path == "/repos/omar-184/HYPER-OCR/releases/latest" and fake.release:
+                    body, kind = json.dumps(fake.release).encode(), "application/json"
+                else:
+                    body, kind = fake.files.get(self.path, (b"", "text/plain"))
+                self.send_response(200 if body else 404)
+                self.send_header("Content-Type", kind)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):
+                pass
+
+        self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self.base = "http://127.0.0.1:%d" % self.server.server_port
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+
+    def publish(self, version="9.9.0", data=None, checksum=None, **zip_args):
+        data = data if data is not None else _newer_zip(self.app, version, **zip_args)
+        name = "HYPER-OCR-%s.zip" % version
+        checksum = checksum or hashlib.sha256(data).hexdigest()
+        self.files = {"/dl/" + name: (data, "application/zip"),
+                      "/dl/" + name + ".sha256": (("%s  %s\n" % (checksum, name)).encode(), "text/plain")}
+        self.release = {"tag_name": "v" + version, "assets": [
+            {"name": name, "browser_download_url": self.base + "/dl/" + name},
+            {"name": name + ".sha256", "browser_download_url": self.base + "/dl/" + name + ".sha256"}]}
 
 
 @pytest.fixture
@@ -56,32 +99,15 @@ def fake_github(tmp_path):
     (app / "models" / "weights.bin").write_bytes(b"keep me")
     (app / ".venv").mkdir()
     (app / ".venv" / "marker").write_text("keep me")
-    newer = _newer_zip(app)
-    init = (app / "hyperocr" / "__init__.py").read_text().replace(__version__, "9.9.0")
-
-    class Handler(BaseHTTPRequestHandler):
-        def do_GET(self):
-            routes = {
-                "/repos/omar-184/HYPER-OCR": (json.dumps({"default_branch": "main"}).encode(), "application/json"),
-                "/repos/omar-184/HYPER-OCR/contents/hyperocr/__init__.py?ref=main": (init.encode(), "text/plain"),
-                "/repos/omar-184/HYPER-OCR/zipball/main": (newer, "application/zip"),
-            }
-            body, kind = routes.get(self.path, (b"", ""))
-            self.send_response(200 if body else 404)
-            self.send_header("Content-Type", kind or "text/plain")
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *args):
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    env = dict(os.environ, HYPEROCR_UPDATE_API="http://127.0.0.1:%d" % server.server_port,
-               HYPEROCR_APP_ROOT=str(app), NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
-    yield app, env
-    server.shutdown()
+    (app / "My scans").mkdir()                                  # a folder of the user's own
+    (app / "My scans" / "lab.pdf").write_bytes(b"%PDF mine")
+    (app / ".backup" / "0.9.0").mkdir(parents=True)             # an older update's backup
+    github = FakeGitHub(app)
+    github.publish()
+    env = dict(os.environ, HYPEROCR_UPDATE_API=github.base, HYPEROCR_APP_ROOT=str(app),
+               NO_PROXY="127.0.0.1,localhost", no_proxy="127.0.0.1,localhost")
+    yield app, env, github
+    github.server.shutdown()
 
 
 def _run(app, env, *args):
@@ -90,15 +116,16 @@ def _run(app, env, *args):
     return out, [json.loads(l) for l in out.stdout.splitlines() if l.startswith("{")]
 
 
-def test_check_reports_the_newer_version(fake_github):
-    app, env = fake_github
+def test_check_reports_the_newer_release(fake_github):
+    app, env, github = fake_github
     out, events = _run(app, env, "--check")
     assert out.returncode == 0, out.stderr
-    assert events[-1] == {"current": __version__, "latest": "9.9.0", "available": True, "branch": "main"}
+    state = events[-1]
+    assert (state["current"], state["latest"], state["available"], state["release"]) == (__version__, "9.9.0", True, "v9.9.0")
 
 
 def test_update_replaces_app_files_and_keeps_everything_else(fake_github):
-    app, env = fake_github
+    app, env, github = fake_github
     out, events = _run(app, env, "--yes")
     assert out.returncode == 0, out.stderr
     assert [e["step"] for e in events] == ["downloading", "unpacking", "installing", "done"]
@@ -110,20 +137,53 @@ def test_update_replaces_app_files_and_keeps_everything_else(fake_github):
     assert (app / "models" / "weights.bin").read_bytes() == b"keep me"        # the model is untouched
     assert not (app / "models" / "should-not-arrive.txt").exists()
     assert (app / ".venv" / "marker").read_text() == "keep me"
+    assert (app / "My scans" / "lab.pdf").read_bytes() == b"%PDF mine"        # the user's folder too
     backup = app / ".backup" / __version__
+    assert [p.name for p in (app / ".backup").iterdir()] == [__version__]     # only the last backup is kept
     assert __version__ in (backup / "hyperocr" / "__init__.py").read_text()
     assert (backup / "hyperocr" / "static" / "icon.svg").is_file()
+    assert not (backup / "My scans").exists() and not (backup / "models").exists()   # app files only
 
 
 def test_up_to_date_does_nothing(fake_github):
-    app, env = fake_github
+    app, env, github = fake_github
     _run(app, env, "--yes")
     out, events = _run(app, env, "--yes")                 # now running 9.9.0 itself
     assert events[-1]["step"] == "upToDate"
 
 
+def test_nothing_is_installed_without_a_published_release(fake_github):
+    """A push to a branch, however new, never reaches people: only a release does."""
+    app, env, github = fake_github
+    github.release = None
+    out, events = _run(app, env, "--yes")
+    assert out.returncode == 0 and events[-1]["step"] == "upToDate" and events[-1]["available"] is False
+    assert __version__ in (app / "hyperocr" / "__init__.py").read_text()
+
+
+def test_a_download_that_does_not_match_its_checksum_is_refused(fake_github):
+    app, env, github = fake_github
+    github.publish(checksum="0" * 64)
+    out, events = _run(app, env, "--yes")
+    assert out.returncode == 1 and events[-1]["step"] == "failed" and "SHA-256" in events[-1]["error"]
+    assert __version__ in (app / "hyperocr" / "__init__.py").read_text()
+    assert not (app / "hyperocr" / "brand_new.py").exists()
+
+
+def test_a_failed_package_install_leaves_the_old_version_running(fake_github):
+    app, env, github = fake_github
+    github.publish(requirements_extra="\nhyperocr-package-that-does-not-exist==0.0.1\n")
+    env = dict(env, PIP_NO_INDEX="1")                     # fail fast, offline
+    out, events = _run(app, env, "--yes")
+    assert out.returncode == 1 and events[-1]["step"] == "failed", events
+    assert [e["step"] for e in events] == ["downloading", "unpacking", "packages", "failed"]
+    assert __version__ in (app / "hyperocr" / "__init__.py").read_text()     # no file was replaced
+    assert not (app / "hyperocr" / "brand_new.py").exists()
+    assert "does-not-exist" not in (app / "requirements.txt").read_text()
+
+
 def test_server_check_endpoint(fake_github, monkeypatch, tmp_path):
-    app, env = fake_github
+    app, env, github = fake_github
     for key in ("HYPEROCR_UPDATE_API", "HYPEROCR_APP_ROOT", "NO_PROXY", "no_proxy"):
         monkeypatch.setenv(key, env[key])
     from hyperocr.jobs import JobManager

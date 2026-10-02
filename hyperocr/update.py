@@ -1,14 +1,19 @@
-"""Update HYPER-OCR in place from its GitHub repository.
+"""Update HYPER-OCR in place from its latest GitHub Release.
 
-    python -m hyperocr.update            # check, and update if a newer version exists
+    python -m hyperocr.update            # check, and update if a newer release exists
     python -m hyperocr.update --check    # only say whether there is one
     python -m hyperocr.update --yes      # update without asking
 
-Only the app's own files are replaced. Python, the installed packages, Tesseract,
-the language files and the Unlimited-OCR model stay as they are; packages are
-reinstalled only when the new version's requirements differ. The previous
-version is kept in .backup/<version>/ and restored automatically if anything
-goes wrong while files are being replaced.
+Only a published GitHub Release is installed, never whatever happens to be on a
+branch: the release must carry HYPER-OCR-<version>.zip and its .sha256, and the
+download must match that checksum (made by tools/make_release.py).
+
+Only the app's own files are replaced: the top-level files and folders the release
+contains. Python, the installed packages, Tesseract, the language files, the model
+and any folder of your own stay as they are. When the release needs different
+packages they are installed first, before any file is touched: if that fails,
+nothing changes. The replaced files are kept in .backup/<version>/ (only the last
+update's) and put back automatically if anything goes wrong while copying.
 
 This runs as its own process, started by the app's "Check for Updates" button
 (or the update-windows.bat / update.sh files). It is the only part of HYPER-OCR
@@ -27,6 +32,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -48,10 +54,18 @@ class UpdateError(RuntimeError):
 def _get(url: str, accept: str = "application/vnd.github+json") -> bytes:
     req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": "HYPER-OCR-updater"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=120) as r:
             return r.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            raise NotFound(url) from exc
+        raise UpdateError("network: %s" % exc) from exc
     except Exception as exc:
         raise UpdateError("network: %s" % exc) from exc
+
+
+class NotFound(UpdateError):
+    pass
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -65,14 +79,28 @@ def _fmt(v: tuple[int, ...]) -> str:
     return ".".join(str(p) for p in v)
 
 
+def _latest_release() -> dict | None:
+    """GitHub's latest published release (drafts and pre-releases never count), or None."""
+    try:
+        return json.loads(_get("%s/repos/%s/releases/latest" % (API, REPO)))
+    except NotFound:
+        return None
+
+
 def check() -> dict:
-    info = json.loads(_get("%s/repos/%s" % (API, REPO)))
-    branch = info.get("default_branch") or "main"
-    text = _get("%s/repos/%s/contents/hyperocr/__init__.py?ref=%s" % (API, REPO, branch),
-                accept="application/vnd.github.raw").decode("utf-8", "replace")
-    latest = parse_version(text)
     current = parse_version(__version__)
-    return {"current": _fmt(current), "latest": _fmt(latest), "available": latest > current, "branch": branch}
+    state = {"current": _fmt(current), "latest": _fmt(current), "available": False, "release": None}
+    release = _latest_release()
+    if release is None:
+        return state                                  # nothing published yet
+    latest = parse_version(str(release.get("tag_name", "")).lstrip("vV"))
+    name = "HYPER-OCR-%s.zip" % _fmt(latest)
+    assets = {a.get("name"): a for a in release.get("assets", [])}
+    if name not in assets or name + ".sha256" not in assets:
+        raise UpdateError("release %s has no %s with its .sha256" % (release.get("tag_name"), name))
+    state.update(latest=_fmt(latest), available=latest > current, release=release.get("tag_name"),
+                 zip=assets[name]["browser_download_url"], sha256=assets[name + ".sha256"]["browser_download_url"])
+    return state
 
 
 def apply(say=print) -> dict:
@@ -83,24 +111,30 @@ def apply(say=print) -> dict:
     say({"step": "downloading", "version": state["latest"]})
     with tempfile.TemporaryDirectory(prefix="hyperocr-update-") as tmp:
         archive = Path(tmp) / "update.zip"
-        archive.write_bytes(_get("%s/repos/%s/zipball/%s" % (API, REPO, state["branch"])))
+        archive.write_bytes(_get(state["zip"], accept="application/octet-stream"))
+        expected = _get(state["sha256"], accept="application/octet-stream").decode("ascii", "replace").split()
+        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if not expected or expected[0].lower() != actual:
+            raise UpdateError("the download does not match its published SHA-256: not installed")
         say({"step": "unpacking"})
         new_root = _unpack(archive, Path(tmp) / "new")
         found = parse_version((new_root / "hyperocr" / "__init__.py").read_text(encoding="utf-8"))
-        if found <= parse_version(__version__):
-            raise UpdateError("the download is not newer than this version")
+        if _fmt(found) != state["latest"]:
+            raise UpdateError("the release %s contains version %s" % (state["release"], _fmt(found)))
         packages_changed = _req_hash(ROOT) != _req_hash(new_root)
+        if packages_changed:
+            say({"step": "packages"})
+            _install_packages(new_root)              # before any file is replaced: a failure changes nothing
         say({"step": "installing"})
+        names = [p.name for p in _entries(new_root)]
         backup = ROOT / ".backup" / __version__
-        _backup(backup)
+        _backup(backup, names)
         try:
             _replace(new_root)
         except Exception:
-            _restore(backup)
+            _restore(backup, names)
             raise
-    if packages_changed:
-        say({"step": "packages"})
-        _install_packages()
+        _prune_backups(keep=backup)
     result = dict(state, updated=True, packages=packages_changed)
     say({"step": "done", **result})
     return result
@@ -127,15 +161,24 @@ def _entries(root: Path):
         yield p
 
 
-def _backup(target: Path) -> None:
+def _backup(target: Path, names: list[str]) -> None:
+    """Copy what the update will replace: only the app's own top-level files and folders."""
     if target.exists():
         shutil.rmtree(target)
     target.mkdir(parents=True)
-    for p in _entries(ROOT):
+    for name in names:
+        p = ROOT / name
         if p.is_dir():
-            shutil.copytree(p, target / p.name, ignore=shutil.ignore_patterns("__pycache__"))
-        else:
-            shutil.copy2(p, target / p.name)
+            shutil.copytree(p, target / name, ignore=shutil.ignore_patterns("__pycache__"))
+        elif p.is_file():
+            shutil.copy2(p, target / name)
+
+
+def _prune_backups(keep: Path) -> None:
+    """Only the last update's backup is kept."""
+    for old in (ROOT / ".backup").iterdir():
+        if old != keep and old.is_dir():
+            shutil.rmtree(old, ignore_errors=True)
 
 
 def _replace(new_root: Path) -> None:
@@ -190,13 +233,19 @@ def _keep_executable(path: Path) -> None:
         path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
 
 
-def _restore(backup: Path) -> None:
-    for p in backup.iterdir():
-        dst = ROOT / p.name
-        if p.is_dir():
-            _sync_dir(p, dst)
-        else:
-            shutil.copy2(p, dst)
+def _restore(backup: Path, names: list[str]) -> None:
+    for name in names:
+        saved, dst = backup / name, ROOT / name
+        if saved.is_dir():
+            _sync_dir(saved, dst)
+        elif saved.is_file():
+            if dst.is_dir():
+                shutil.rmtree(dst)
+            shutil.copy2(saved, dst)
+        elif dst.is_dir():                 # new in the failed version: remove it again
+            shutil.rmtree(dst, ignore_errors=True)
+        elif dst.exists():
+            dst.unlink()
 
 
 def _req_hash(root: Path) -> str:
@@ -207,16 +256,17 @@ def _req_hash(root: Path) -> str:
     return h.hexdigest()
 
 
-def _install_packages() -> None:
+def _install_packages(new_root: Path) -> None:
+    """The new version's packages, into this app's Python, before its files are copied in."""
     pip = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q"]
-    _run(pip + ["-r", str(ROOT / "requirements.txt")])
+    _run(pip + ["-r", str(new_root / "requirements.txt")])
     _run(pip + ["--no-deps", "markitdown>=0.1.2,<0.2"])
     if os.environ.get("HYPEROCR_GPU", "").strip() != "1":
         return  # the experimental GPU engine is off: never download its packages
     try:
         import torch  # noqa: F401  (only people who installed GPU support get its updates)
 
-        _run(pip + ["-r", str(ROOT / "requirements-gpu.txt")])
+        _run(pip + ["-r", str(new_root / "requirements-gpu.txt")])
     except ImportError:
         pass
 
