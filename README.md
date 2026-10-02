@@ -9,13 +9,12 @@ Turn scanned PDFs and photos of pages into:
 
 > **Check every number.** OCR misreads numbers, and it does so with full confidence: in testing `5.3` became `53` and `5 mg` became `5 9`. Every number HYPER-OCR reads is unverified, including text you copy from the searchable PDF. Compare each one with the original page before you use it. Each Word table includes a picture of the original table for exactly this, and the results screen says so every time.
 
-Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and works in a phone browser too.
+Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and adapts to a narrow browser window. It runs in a browser on the computer where it is installed; other devices, phones included, can't reach it, by design.
 
 ![HYPER-OCR in light appearance, with four files ready](docs/screenshot-light.png)
 
 ![Results in dark appearance, three files converted separately](docs/screenshot-dark.png)
 
-![On a phone, light and dark](docs/screenshot-phone.png)
 
 ## What you get
 
@@ -45,7 +44,7 @@ You need the internet **once**, during setup. After that the app never goes onli
 
 ### Windows 10 or 11
 
-1. Download this folder (on GitHub: **Code → Download ZIP**) and unzip it somewhere, for example in `Documents`.
+1. Download the latest release from the repository's **Releases** page (`HYPER-OCR-<version>.zip`) and unzip it somewhere, for example in `Documents`. Updates later come from the same page (see [Updating](#updating)).
 2. Double-click **`setup-windows.bat`**. It installs, where missing:
    - Python 3.12;
    - Tesseract OCR;
@@ -236,6 +235,8 @@ The same look is published in Claude Design as the **Apple style App** design sy
 `design-system/` keeps the green **Attendance Register** design system that version 1.0 used. It is still published in Claude Design; `python design-system/build_css.py` writes its CSS to `design-system/build/`.
 
 ## Credits and licences
+
+HYPER-OCR is free software under the [GNU Affero General Public License v3.0](LICENSE), the licence of PyMuPDF, which it is built on. You may use, share and change it; if you distribute it, or run a changed version as a service for others, you must offer its source code under the same licence.
 
 - [Unlimited-OCR](https://github.com/baidu/Unlimited-OCR) by Baidu (MIT)
 - [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft (MIT)
