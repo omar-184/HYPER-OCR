@@ -106,8 +106,11 @@ jobs:
           $upd = Join-Path $env:RUNNER_TEMP "update-check.json"
           $c = Start-Process "$dir\HYPER-OCR.exe" -ArgumentList '--update', '--check', '--json' -RedirectStandardOutput $upd -Wait -PassThru
           $state = Get-Content $upd -Raw | ConvertFrom-Json
-          if ($c.ExitCode -ne 0 -or -not $state.current) { throw "update check failed: $(Get-Content $upd -Raw)" }
-          "Update check: this is $($state.current); latest release $($state.latest); newer available: $($state.available)"
+          # GitHub limits anonymous API calls per address, and runners share addresses: an answer that
+          # says so still shows the app reached GitHub over HTTPS and reported back.
+          if ($state.error -match 'rate limit') { "Update check reported back: GitHub's rate limit for this runner" }
+          elseif ($c.ExitCode -ne 0 -or -not $state.current) { throw "update check failed: $(Get-Content $upd -Raw)" }
+          else { "Update check: this is $($state.current); latest release $($state.latest); newer available: $($state.available)" }
           $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           Start-Sleep 3
           if (Test-Path "$dir\HYPER-OCR.exe") { throw "uninstall left the app behind" }
