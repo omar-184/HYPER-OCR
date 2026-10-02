@@ -142,7 +142,10 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 
 - The server listens on `127.0.0.1` only, so other computers on your network cannot reach it. It also refuses requests addressed to any other host name, and changes that don't carry the app's own header, so a website open in another tab cannot use it.
 - The page's Content Security Policy forbids any connection except to the app itself. No fonts, scripts or analytics load from anywhere else.
-- Uploads and results live in a temporary folder. They are deleted when you click **Convert Other Files**, six hours after a conversion, and when you close the app.
+- Uploads and results live in a temporary folder (`hyperocr-…` in your system's temp folder):
+  - your original files and the page previews are deleted as soon as a conversion ends;
+  - the results are deleted when you click **Convert Other Files**, one hour after the conversion ended if you don't, and when you stop the app (Ctrl+C, or closing its window);
+  - if the app is killed instead (a crash, a forced shutdown), its next start deletes what it left. A second copy of the app that is still running keeps its files.
 - The only connection HYPER-OCR ever makes is **Software Update**, to `api.github.com` (and GitHub's download server), and only when you click it. It sends no information about you or your files.
 - No AI service is called.
 - While it converts, HYPER-OCR refuses every outgoing network connection except to this computer itself. Libraries that can report usage are switched off.

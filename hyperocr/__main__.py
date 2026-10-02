@@ -48,6 +48,25 @@ def main(argv: list[str] | None = None) -> int:
         env["HYPEROCR_NO_BROWSER"] = "1"   # the open page reloads by itself
 
 
+def _on_console_close(cleanup) -> None:
+    """Windows: closing the black window ends the app without Ctrl+C. Windows gives the app a few
+    seconds after the close button is pressed; use them to delete this run's temporary folder.
+    (If it is killed anyway, the next start removes the folder: see jobs.remove_stale_folders.)"""
+    if sys.platform != "win32":
+        return
+    import ctypes
+
+    handler_type = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.c_uint)
+
+    def handler(event: int) -> int:
+        if event in (2, 5, 6):        # CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT
+            cleanup()
+        return 0                      # let Windows (and Python, for Ctrl+C) carry on as usual
+
+    _on_console_close.handler = handler_type(handler)   # keep a reference for the process's lifetime
+    ctypes.windll.kernel32.SetConsoleCtrlHandler(_on_console_close.handler, True)
+
+
 def serve_app(argv: list[str]) -> None:
     parser = argparse.ArgumentParser(prog="hyperocr", description="Offline scanned-PDF converter.")
     parser.add_argument("--port", type=int, default=8765)
@@ -80,6 +99,7 @@ def serve_app(argv: list[str]) -> None:
         threading.Thread(target=stop, daemon=True).start()
 
     app.extensions["hyperocr.restart"] = restart
+    _on_console_close(jobs.close)
     print("HYPER-OCR %s is running at %s" % (__version__, url))
     print("Everything stays on this computer. Close this window to stop it.")
     if not args.no_browser and not os.environ.get("HYPEROCR_NO_BROWSER"):

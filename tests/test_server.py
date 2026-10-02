@@ -68,8 +68,9 @@ def test_full_job(client):
     assert z.status_code == 200 and z.data[:2] == b"PK"
     img = client.get("/api/jobs/%s/files/%s" % (job_id, doc["images"][0]))
     assert img.status_code == 200 and img.data[:4] == b"\x89PNG"
-    preview = client.get(job["preview"]) if job["preview"] else None
-    assert preview is not None and preview.status_code == 200 and preview.data[:2] == b"\xff\xd8"
+    # Originals and page previews go as soon as the job ends.
+    folder = client.application.extensions["hyperocr.jobs"].get(job_id).folder
+    assert job["preview"] == "" and not any((folder / w).exists() for w in ("_uploads", "_inputs", "_previews"))
     assert client.get("/api/jobs/%s/files/../input.pdf" % job_id).status_code == 404
     assert client.get("/api/jobs/%s/files/_previews/001-0001.jpg" % job_id).status_code == 404
     assert client.get("/api/jobs/%s/files/%%2e%%2e/%%2e%%2e/x" % job_id).status_code == 404

@@ -68,6 +68,9 @@ def safe_stem(name: str) -> str:
     stem = Path(name).stem
     stem = unicodedata.normalize("NFC", stem)
     stem = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", stem).strip(" .")
+    # Working folders (_uploads, _inputs, _previews) start with "_"; a result folder never does,
+    # so a file called "_previews.pdf" can't have its results deleted with the previews.
+    stem = stem.lstrip("_ ")
     return stem[:80] or "document"
 
 

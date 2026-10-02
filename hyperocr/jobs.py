@@ -3,8 +3,10 @@ progress for the interface, and clean-up of temporary files."""
 
 from __future__ import annotations
 
+import os
 import queue
 import shutil
+import sys
 import tempfile
 import threading
 import time
@@ -16,7 +18,11 @@ from pathlib import Path
 from .engines.base import EngineError, Options
 from .pipeline import Cancelled, JobOutput, convert_job
 
-KEEP_SECONDS = 6 * 3600   # finished jobs are deleted after six hours
+KEEP_SECONDS = 3600       # finished jobs are deleted an hour after they end
+SWEEP_EVERY = 300         # seconds between checks for expired jobs
+OWNER_FILE = "owner.pid"  # which running copy of the app a temporary folder belongs to
+LEGACY_MAX_AGE = 3600     # folders from versions without an owner file: removed when this old
+WORK_FOLDERS = ("_uploads", "_inputs", "_previews")   # deleted as soon as a job ends
 
 
 @dataclass
@@ -84,9 +90,10 @@ class Job:
 class JobManager:
     def __init__(self, root: Path | None = None) -> None:
         if root is None:
-            _remove_stale_folders()
+            remove_stale_folders()
         self.root = Path(root or tempfile.mkdtemp(prefix="hyperocr-"))
         self.root.mkdir(parents=True, exist_ok=True)
+        (self.root / OWNER_FILE).write_text(str(os.getpid()), encoding="ascii")
         self.jobs: dict[str, Job] = {}
         self.lock = threading.Lock()
         self.queue: queue.Queue[str] = queue.Queue()
@@ -154,7 +161,12 @@ class JobManager:
 
     def _run(self) -> None:
         while True:
-            job_id = self.queue.get()
+            try:
+                job_id = self.queue.get(timeout=SWEEP_EVERY)
+            except queue.Empty:
+                with self.lock:
+                    self._sweep()   # results nobody came back for go after KEEP_SECONDS
+                continue
             job = self.get(job_id)
             if job is None:
                 continue
@@ -178,8 +190,9 @@ class JobManager:
                 traceback.print_exc()
             finally:
                 job.finished = time.time()
-                for temp in ("_uploads", "_inputs"):   # the originals are no longer needed
+                for temp in WORK_FOLDERS:   # originals and page previews are no longer needed
                     shutil.rmtree(job.folder / temp, ignore_errors=True)
+                job.preview = ""
                 self._discard_if_deleted(job)
 
     def _discard_if_deleted(self, job: Job) -> None:
@@ -205,12 +218,57 @@ class JobManager:
                 shutil.rmtree(job.folder, ignore_errors=True)
 
 
-def _remove_stale_folders(max_age: float = 24 * 3600) -> None:
-    """Folders left by an earlier run that was closed without stopping cleanly."""
+def remove_stale_folders() -> list[Path]:
+    """Folders left by an earlier run that was killed instead of stopped (a closed window,
+    a crash). Each run writes its process id into its folder; a folder whose process has
+    gone is removed, while a second copy of the app that is still running keeps its own."""
+    removed = []
     now = time.time()
     for folder in Path(tempfile.gettempdir()).glob("hyperocr-*"):
         try:
-            if folder.is_dir() and now - folder.stat().st_mtime > max_age:
+            if not folder.is_dir():
+                continue
+            owner = folder / OWNER_FILE
+            if owner.is_file():
+                try:
+                    stale = not _alive(int(owner.read_text(encoding="ascii").strip()))
+                except ValueError:
+                    stale = True
+            else:   # made by a version before 1.2, which wrote no owner file
+                stale = now - folder.stat().st_mtime > LEGACY_MAX_AGE
+            if stale:
                 shutil.rmtree(folder, ignore_errors=True)
+                removed.append(folder)
         except OSError:
             pass
+    return removed
+
+
+def _alive(pid: int) -> bool:
+    """Whether a process with this id is running (when unsure: yes, so nothing is wiped)."""
+    if pid <= 0:
+        return False
+    if pid == os.getpid():
+        return True
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not handle:
+            return ctypes.GetLastError() == 5               # access denied: it exists
+        try:
+            code = ctypes.c_ulong()
+            kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
+            return code.value == 259                         # STILL_ACTIVE
+        finally:
+            kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)          # signal 0 only checks; never used on Windows, where 0 is Ctrl+C
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return True
+    return True
