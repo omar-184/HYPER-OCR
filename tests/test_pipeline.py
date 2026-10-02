@@ -3,6 +3,7 @@ stand-in model that answers in Unlimited-OCR's documented output format."""
 
 import zipfile
 
+import numpy as np
 import pymupdf
 import pytest
 from docx import Document
@@ -197,3 +198,38 @@ def test_a_stamped_scan_still_gets_its_ocr_layer(tmp_path):
     assert pymupdf.open(pdf)[0].search_for("Mobilisation")
     assert pymupdf.open(pdf)[0].search_for("FAX 02/10/2026")          # the stamp itself is kept
     assert not any(w["key"] == "keptText" for w in out.warnings)
+
+
+def _turned_copy(tmp_path, degrees: dict[int, int]) -> "Path":
+    """The English fixture as a scanner would have fed it: page content turned, no /Rotate flag."""
+    src = pymupdf.open(FIXTURES / "scanned_english.pdf")
+    out = pymupdf.open()
+    for i, page in enumerate(src):
+        pix = page.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+        img = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w)
+        img = np.ascontiguousarray(np.rot90(img, k=-degrees.get(i, 0) // 90))   # clockwise
+        new = out.new_page(width=page.rect.width if img.shape[0] > img.shape[1] else page.rect.height,
+                           height=page.rect.height if img.shape[0] > img.shape[1] else page.rect.width)
+        new.insert_image(new.rect, pixmap=pymupdf.Pixmap(pymupdf.csGRAY, img.shape[1], img.shape[0], img.tobytes(), False))
+    path = tmp_path / "turned.pdf"
+    out.save(path)
+    return path
+
+
+@needs_tesseract
+def test_upside_down_and_sideways_pages_are_turned_upright(tmp_path):
+    path = _turned_copy(tmp_path, {0: 180, 1: 90})
+    out = convert(path, tmp_path / "out", Options(engine="tesseract", languages=["eng"]), lambda d: None)
+    pdf = pymupdf.open(out.folder / out.pdf_file)
+    assert pdf[0].search_for("Mobilisation") and pdf[1].search_for("Baseline")
+    assert [p.rotation for p in pdf] == [180, 270]          # shown upright; the scan itself untouched
+    assert {"key": "turned", "pages": [1, 2]} in out.warnings
+    assert "| Day 2 | 88 | 57.9 | 5.3 |" in out.markdown
+
+
+@needs_tesseract
+def test_upright_pages_are_left_alone(tmp_path):
+    out = convert(FIXTURES / "scanned_arabic.pdf", tmp_path, Options(engine="tesseract", languages=["eng", "ara"]),
+                  lambda d: None)
+    assert not any(w["key"] == "turned" for w in out.warnings)
+    assert [p.rotation for p in pymupdf.open(out.folder / out.pdf_file)] == [0]

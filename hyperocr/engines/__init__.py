@@ -75,4 +75,16 @@ def choose(options: Options) -> tuple[Engine, Availability | None]:
     return cpu, gpu_state
 
 
-__all__ = ["Engine", "EngineError", "Options", "choose", "describe", "get", "gpu_enabled"]
+def page_turn(image, dpi: float) -> int:
+    """How far to turn a page (clockwise degrees) so it stands upright, read by Tesseract's
+    orientation detection whichever engine reads the text; 0 if it can't tell."""
+    try:
+        tesseract = get("tesseract")
+        if not tesseract.availability().ok:
+            return 0
+        return tesseract.page_turn(image, dpi)
+    except Exception:
+        return 0
+
+
+__all__ = ["Engine", "EngineError", "Options", "choose", "describe", "get", "gpu_enabled", "page_turn"]

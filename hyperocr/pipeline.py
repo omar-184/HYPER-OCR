@@ -167,6 +167,7 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
     pages: list[PageResult] = []
     had_text: list[int] = []
     empty: list[int] = []
+    turned: list[int] = []
     width = max(3, len(str(doc.page_count)))
     table_no = 0
 
@@ -175,9 +176,14 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
             raise Cancelled()
         page = doc[i]
         dpi = _page_dpi(page, options.dpi)
-        pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csRGB, alpha=False)
-        image = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, 3).copy()
-        del pix
+        image = _render(page, dpi)
+        turn = engines.page_turn(image, dpi)
+        if turn:
+            # Upside down or sideways: turn the page itself (its /Rotate; the scan is untouched),
+            # so the searchable PDF shows it upright and everything below reads it upright.
+            page.set_rotation((page.rotation + turn) % 360)
+            image = _render(page, dpi)
+            turned.append(i + 1)
         update = {"stage": "reading", "page": i + 1, "pages": doc.page_count}
         if previews is not None:
             update["preview"] = _save_preview(image, previews, "%s-%04d.jpg" % (preview_prefix, i + 1))
@@ -230,6 +236,8 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
         pages.append(result)
         del image
 
+    if turned:
+        out.warnings.append({"key": "turned", "pages": turned})
     if had_text:
         out.warnings.append({"key": "keptText", "pages": had_text})
     if empty:
@@ -264,6 +272,11 @@ def _save_preview(image: np.ndarray, folder: Path, name: str) -> str:
     im.thumbnail((560, 800))
     im.save(folder / name, "JPEG", quality=72)
     return name
+
+
+def _render(page: pymupdf.Page, dpi: int) -> np.ndarray:
+    pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csRGB, alpha=False)
+    return np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, 3).copy()
 
 
 def _page_dpi(page: pymupdf.Page, dpi: int) -> int:

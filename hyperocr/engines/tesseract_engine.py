@@ -57,6 +57,8 @@ ORPHAN_BLOCK = 100000   # block numbers for text recovered outside Tesseract's o
 LINE_HEIGHTS = (36, 48)
 REREAD_LIMIT = 60          # unsure words re-read per page, least confident first
 SURE = 90.0                # a reading this confident is not re-read at another size
+OSD_DPI = 150              # page orientation is read at this resolution: at 100 dpi it guessed wrong
+OSD_MIN_CONF = 3.0         # turned pages measured 6.2-13.8; wrong guesses at 100 dpi were below 0.2
 
 
 def find_tesseract() -> str | None:
@@ -128,6 +130,23 @@ class TesseractEngine(Engine):
                 langs = []
             self._langs = sorted(l for l in langs if l not in ("osd", "equ", "snum"))
         return self._langs
+
+    def page_turn(self, image: np.ndarray, dpi: float) -> int:
+        """Degrees (90, 180 or 270) the page must be turned clockwise to stand upright: 0 when it
+        already does, or when Tesseract isn't sure (little text, no `osd` language data)."""
+        pt = self._ready()
+        gray = cv.to_gray(image)
+        scale = min(1.0, OSD_DPI / dpi)
+        if scale < 1.0:
+            gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+        try:
+            osd = pt.image_to_osd(gray, config="--psm 0 --dpi %d" % int(dpi * scale), output_type=pt.Output.DICT)
+        except Exception:   # too few characters, or no osd data: leave the page as it is
+            return 0
+        turn = int(osd.get("rotate", 0)) % 360
+        if turn not in (90, 180, 270) or float(osd.get("orientation_conf", 0)) < OSD_MIN_CONF:
+            return 0
+        return turn
 
     def usable_languages(self, wanted: list[str]) -> list[str]:
         have = set(self.languages())

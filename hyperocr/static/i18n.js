@@ -151,6 +151,8 @@
     again: { en: 'Convert Other Files', ar: 'تحويل ملفات أخرى' },
     w_usedCpu: { en: 'Tesseract read these files because Unlimited-OCR isn’t available on this computer.', ar: 'قرأ Tesseract هذه الملفات لأن Unlimited-OCR غير متاح على هذا الجهاز.' },
     // Page notes: `_one` is used for a single page. The document's name, when there are several, goes before them.
+    w_turned_one: { en: 'Page {pages} was upside down or sideways, so it was turned upright.', ar: 'كانت الصفحة {pages} مقلوبة أو على جانبها، فأُديرت إلى وضعها الصحيح.' },
+    w_turned: { en: 'Pages {pages} were upside down or sideways, so they were turned upright.', ar: 'كانت الصفحات {pages} مقلوبة أو على جوانبها، فأُديرت إلى وضعها الصحيح.' },
     w_keptText_one: { en: 'Page {pages} already had its own text, so it was kept as it is.', ar: 'الصفحة {pages} تحتوي على نص أصلاً، لذلك تُرك كما هو.' },
     w_keptText: { en: 'Pages {pages} already had their own text, so it was kept as it is.', ar: 'الصفحات {pages} تحتوي على نص أصلاً، لذلك تُرك كما هو.' },
     w_noText_one: { en: 'No text was found on page {pages}. If it does have text, try Small Print.', ar: 'لم يُعثر على نص في الصفحة {pages}. إذا كانت تحتوي على نص فجرّب دقة «للخط الصغير».' },
