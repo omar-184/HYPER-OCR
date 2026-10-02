@@ -17,7 +17,6 @@ class Options:
     engine: str = "auto"                     # auto | unlimited | unlimited-server | tesseract
     languages: list[str] = field(default_factory=lambda: ["eng", "ara"])
     dpi: int = 300
-    table_snapshot: bool = True              # add a picture of the original table to each Word file
     skip_furniture: bool = True              # leave running headers, footers and page numbers out of Markdown
     ui_lang: str = "en"                      # language for labels inside the Word files
 

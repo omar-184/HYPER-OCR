@@ -241,7 +241,6 @@ def _options(raw: dict, info: dict) -> Options:
         engine=engine,
         languages=langs or info["defaults"]["languages"] or ["eng"],
         dpi=dpi if dpi in (200, 300, 400) else 300,
-        table_snapshot=bool(raw.get("table_snapshot", True)),
         skip_furniture=bool(raw.get("skip_furniture", True)),
         ui_lang="ar" if raw.get("ui_lang") == "ar" else "en",
     )

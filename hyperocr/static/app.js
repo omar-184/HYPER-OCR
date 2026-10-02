@@ -252,7 +252,6 @@
     for (const opt of $('dpi').options) opt.textContent = t(opt.dataset.i18n) + ' · ' + opt.value + ' dpi';
     const savedDpi = String(store.get('dpi') || '');
     if (['200', '300', '400'].includes(savedDpi) && !$('dpi').dataset.touched) $('dpi').value = savedDpi;
-    if (store.get('snapshot') === false) $('opt-snapshot').checked = false;
     if (store.get('furniture') === false) $('opt-furniture').checked = false;
     $('about-version').textContent = t('version', { v: sys.version });
     renderEngineStatus();
@@ -334,7 +333,6 @@
     updateStart();
   });
   $('dpi').addEventListener('change', () => { $('dpi').dataset.touched = '1'; store.set('dpi', Number($('dpi').value)); });
-  $('opt-snapshot').addEventListener('change', () => store.set('snapshot', $('opt-snapshot').checked));
   $('opt-furniture').addEventListener('change', () => store.set('furniture', $('opt-furniture').checked));
 
   function engineUsable() {
@@ -628,7 +626,7 @@
     if (!state.files.length || state.busy) return;
     const options = {
       engine: $('engine').value, languages: currentLanguages(), dpi: Number($('dpi').value),
-      table_snapshot: $('opt-snapshot').checked, skip_furniture: $('opt-furniture').checked,
+      skip_furniture: $('opt-furniture').checked,
       ui_lang: H.i18n.lang, mode: state.mode,
     };
     const form = new FormData();
@@ -839,14 +837,17 @@
 
     $('sec-results').hidden = false;
     $('mobile-bar').hidden = false;
+    // The numbers warning is part of the page, never dismissed: it follows the done card every time.
+    const caution = $('numbers-warning');
     if (animate) {
-      for (const node of [card, ...warnings.children, ...docs.children]) {
+      for (const node of [card, caution, ...warnings.children, ...docs.children]) {
         node.classList.add('reveal-item');
       }
       card.style.setProperty('--i', '0');
+      caution.style.setProperty('--i', '1');
       [...warnings.children, ...docs.children].forEach((n, i) => n.style.setProperty('--i', String(i + 2)));
       window.scrollTo({ top: 0, behavior: reduced() ? 'auto' : 'smooth' });
-      announce(t('doneTitle'));
+      announce(t('doneTitle') + '. ' + t('numbersWarningTitle'));
     }
   }
 

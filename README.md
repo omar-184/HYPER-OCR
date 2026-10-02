@@ -7,6 +7,8 @@ Turn scanned PDFs and photos of pages into:
 - an **`Images` folder** with every picture, chart and figure cut out of the pages;
 - a **`Tables` folder** with each table as its own Word file (`.docx`).
 
+> **Check every number.** OCR misreads numbers, and it does so with full confidence: in testing `5.3` became `53` and `5 mg` became `5 9`. Every number HYPER-OCR reads is unverified, including text you copy from the searchable PDF. Compare each one with the original page before you use it. Each Word table includes a picture of the original table for exactly this, and the results screen says so every time.
+
 Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and works in a phone browser too.
 
 ![HYPER-OCR in light appearance, with four files ready](docs/screenshot-light.png)
@@ -35,7 +37,7 @@ Convert several files **each separately** and the ZIP holds one such folder per 
 
 The Markdown links to its pictures (`![Figure 1 …](Images/page-001_figure-01.png)`) and to each table's Word file, so the folder works as a whole when you unzip it.
 
-Each Word table keeps merged cells, and repeats its header row on every printed page. Arabic tables run right to left. Each file also has the table's caption, the page it came from and, if you leave the option on, a picture of the original table so you can check the numbers.
+Each Word table keeps merged cells, and repeats its header row on every printed page. Arabic tables run right to left. Each file also has the table's caption, the page it came from, a warning that the numbers are unverified and, always, a picture of the original table to check them against.
 
 ## Install
 
@@ -78,7 +80,7 @@ Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `a
    - *Engine*: **Automatic** is Tesseract. (The experimental GPU engine is off; see [The OCR engine](#the-ocr-engine).)
    - *Resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
    - *Languages*: tick every language that appears. Tesseract reads only the languages you tick.
-   - *Output*: put a picture of the original table in each Word file, and leave page headers, footers and page numbers out of the Markdown.
+   - *Output*: leave page headers, footers and page numbers out of the Markdown. (Every Word table always includes a picture of the original table.)
 4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time.
 5. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table. When you converted several files separately, tap a file to open its results.
 

@@ -67,6 +67,15 @@ def fake_gpu(monkeypatch):
     return fake
 
 
+def _assert_checkable(out, warning="Check every number"):
+    """Every Word table carries the unverified-numbers warning and a picture of the original."""
+    assert out.tables
+    for t in out.tables:
+        doc = Document(str(out.folder / t["file"]))
+        assert any(warning in p.text for p in doc.paragraphs), t["file"]
+        assert len(doc.inline_shapes) == 1, t["file"]
+
+
 def _search(pdf, term):
     return sum(len(p.search_for(term)) for p in pymupdf.open(pdf))
 
@@ -109,6 +118,7 @@ def test_tesseract_english(tmp_path):
     cells = [[c.text for c in row.cells] for row in doc.tables[0].rows]
     assert cells[0] == ["Group", "Patients", "Mean age", "Stay (days)"]
     assert cells[2] == ["Day 2", "88", "57.9", "5.3"]
+    _assert_checkable(out)
     assert "## Methods" in out.markdown and "![" in out.markdown
     with zipfile.ZipFile(out.zip_path) as z:
         names = set(z.namelist())
@@ -130,6 +140,7 @@ def test_tesseract_arabic(tmp_path):
     rows = [[c.text for c in row.cells] for row in doc.tables[0].rows]
     assert rows[0] == ["التحليل", "النتيجة", "المعدل الطبيعي"]
     assert rows[2][:2] == ["الكرياتينين", "1.1"]
+    _assert_checkable(out, "طابِق كل رقم")
     assert out.markdown.startswith("# تقرير المتابعة الطبية")
     # Tesseract's page reading skips this heading; the recovered line used to lose "نتا".
     assert "\n## نتائج التحاليل\n" in out.markdown

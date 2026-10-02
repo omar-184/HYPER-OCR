@@ -51,8 +51,11 @@ def _put(parent, name: str, order: list[str], val: str | None = None):
 
 
 LABELS = {
-    "en": {"table": "Table {n}", "page": "page {p}", "scan": "Original scan", "source": "Source: {file}, page {p}"},
-    "ar": {"table": "جدول {n}", "page": "صفحة {p}", "scan": "الصورة الأصلية", "source": "المصدر: {file}، صفحة {p}"},
+    "en": {"table": "Table {n}", "page": "page {p}", "scan": "Original scan", "source": "Source: {file}, page {p}",
+           "check": "Read by OCR and not verified. Check every number against the picture of the original table "
+                    "below before you use it."},
+    "ar": {"table": "جدول {n}", "page": "صفحة {p}", "scan": "الصورة الأصلية", "source": "المصدر: {file}، صفحة {p}",
+           "check": "قُرئ هذا الجدول آلياً ولم يُتحقَّق منه. طابِق كل رقم مع صورة الجدول الأصلي أدناه قبل استخدامه."},
 }
 FONT = "Arial"   # has Latin and Arabic glyphs on Windows, macOS and LibreOffice
 
@@ -86,6 +89,9 @@ def write_table_docx(
         p = doc.add_paragraph()
         _run(p, caption, mostly_rtl(caption), italic=True)
         _para_dir(p, mostly_rtl(caption))
+    p = doc.add_paragraph()
+    _run(p, labels["check"], title_rtl, bold=True, size=9.5)
+    _para_dir(p, title_rtl)
 
     if grid.rows and grid.cols:
         table = doc.add_table(rows=grid.rows, cols=grid.cols)

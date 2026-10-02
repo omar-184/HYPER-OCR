@@ -203,9 +203,8 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
                 continue
             table_no += 1
             file = "Table-%02d_page-%0*d.docx" % (table_no, width, i + 1)
-            snapshot = None
-            if options.table_snapshot:
-                snapshot = img_out.png_bytes(img_out.crop(page, image, _pad(block.box, dpi, image), dpi, 0))
+            # Always: the picture is what every number in the table must be checked against.
+            snapshot = img_out.png_bytes(img_out.crop(page, image, _pad(block.box, dpi, image), dpi, 0))
             write_table_docx(
                 out.folder / "Tables" / file, block.html, table_no, i + 1, name,
                 caption=_caption(result.blocks, j), snapshot_png=snapshot, ui_lang=options.ui_lang,

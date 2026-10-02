@@ -79,11 +79,10 @@
     st_checking: { en: 'Checking this computer…', ar: 'جارٍ فحص هذا الجهاز…' },
 
     outputHeader: { en: 'Output', ar: 'الملفات الناتجة' },
-    optSnapshot: { en: 'Picture of each original table in its Word file', ar: 'صورة الجدول الأصلي داخل ملف Word الخاص به' },
     optFurniture: { en: 'Leave page headers, footers and numbers out of the Markdown', ar: 'استبعاد ترويسة الصفحة وتذييلها وأرقامها من ملف Markdown' },
     outputFooter: {
-      en: 'You get one ZIP: a searchable PDF, a Markdown file, an Images folder and a Tables folder with one Word file per table.',
-      ar: 'تحصل على ملف ZIP واحد: PDF قابل للبحث وملف Markdown ومجلد Images للصور ومجلد Tables فيه ملف Word لكل جدول.',
+      en: 'You get one ZIP: a searchable PDF, a Markdown file, an Images folder and a Tables folder with one Word file per table, each with a picture of the original table to check the numbers against.',
+      ar: 'تحصل على ملف ZIP واحد: PDF قابل للبحث وملف Markdown ومجلد Images للصور ومجلد Tables فيه ملف Word لكل جدول، مع صورة الجدول الأصلي لمطابقة الأرقام عليها.',
     },
     start: { en: 'Convert', ar: 'تحويل' },
     startHint: { en: 'Choose a file first.', ar: 'اختر ملفاً أولاً.' },
@@ -124,6 +123,11 @@
     err_network: { en: 'HYPER-OCR stopped responding. Make sure its window is still open, then try again.', ar: 'توقف HYPER-OCR عن الاستجابة. تأكد أن نافذته ما زالت مفتوحة ثم حاول مرة أخرى.' },
 
     doneTitle: { en: 'Done', ar: 'اكتمل التحويل' },
+    numbersWarningTitle: { en: 'Every number HYPER-OCR reads is unverified.', ar: 'كل رقم يقرؤه HYPER-OCR غير مُتحقَّق منه.' },
+    numbersWarning: {
+      en: 'Check each one against the original before you use it, including text copied from the searchable PDF. Each Word table has a picture of the original table for this.',
+      ar: 'طابِق كل رقم مع الأصل قبل استخدامه، بما في ذلك النص المنسوخ من ملف PDF القابل للبحث. يحتوي كل ملف Word لجدول على صورة الجدول الأصلي لهذا الغرض.',
+    },
     doneSub: { en: '{files} · read by {engine} in {time}', ar: '{files} · بواسطة {engine} خلال {time}' },
     seconds: { en: '{n}\u00a0s', ar: '{n}\u00a0ث' },
     minutes: { en: '{m}\u00a0min {s}\u00a0s', ar: '{m}\u00a0د {s}\u00a0ث' },

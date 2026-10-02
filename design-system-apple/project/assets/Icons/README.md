@@ -17,7 +17,7 @@
 - `appearance.svg`, `sun.svg`, `moon.svg`: theme button in Automatic, Light and Dark (`appearance` has one filled half-disc).
 - `cpu.svg`: the OCR engine.
 - `viewfinder.svg`: resolution.
-- `table.svg`: tables; the table-picture option.
+- `table.svg`: tables.
 - `text.svg`: Markdown; the headers-and-footers option.
 - `down.svg`: download.
 - `refresh.svg`: Software Update.

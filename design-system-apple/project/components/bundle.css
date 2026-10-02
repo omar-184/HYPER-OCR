@@ -309,6 +309,8 @@ button.row:active, a.row:active, label.row:has(select):active { background: var(
 .stat-num { font: 700 26px/1.1 var(--font-rounded); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .stat-label { margin-top: 2px; font-size: 13px; color: var(--label-2); }
 #warnings:empty { display: none; }
+.notice.numbers { margin-top: 12px; }
+.notice strong { font-weight: 600; }
 
 .doc { margin-top: 28px; }
 .doc-head { cursor: pointer; }
