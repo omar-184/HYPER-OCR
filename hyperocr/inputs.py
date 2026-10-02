@@ -20,13 +20,16 @@ IMAGE_TYPES = (".jpg", ".jpeg", ".png", ".tif", ".tiff", ".bmp", ".webp", ".gif"
 A4_LONG_INCHES = 11.69
 Image.MAX_IMAGE_PIXELS = 300_000_000   # large scans are fine; this only guards against absurd files
 
-try:  # iPhone photos
-    import pillow_heif
-
-    pillow_heif.register_heif_opener()
-    HEIC = True
-except ImportError:  # pragma: no cover - optional
-    HEIC = False
+try:  # iPhone photos. pi-heif only decodes, so it bundles no encoder (no GPL x265).
+    import pi_heif as _heif
+except ImportError:  # pragma: no cover - older installs had pillow-heif
+    try:
+        import pillow_heif as _heif
+    except ImportError:
+        _heif = None
+if _heif is not None:
+    _heif.register_heif_opener()
+HEIC = _heif is not None
 
 
 @dataclass

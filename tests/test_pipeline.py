@@ -129,8 +129,31 @@ def test_tesseract_arabic(tmp_path):
     assert rows[0] == ["التحليل", "النتيجة", "المعدل الطبيعي"]
     assert rows[2][:2] == ["الكرياتينين", "1.1"]
     assert out.markdown.startswith("# تقرير المتابعة الطبية")
+    # Tesseract's page reading skips this heading; the recovered line used to lose "نتا".
+    assert "\n## نتائج التحاليل\n" in out.markdown
+    assert _search(pdf, "نتائج")
     assert "الجدول 1 كملف Word" in out.markdown
     assert out.images == []
+
+
+@needs_tesseract
+def test_tesseract_arabic_small_print_setting(tmp_path):
+    """At 400 dpi the page reading was confidently wrong on some Arabic words
+    ("ااطبية", "سنئوات", "Jasall"); unsure words and cells are now re-read at a
+    line height Tesseract reads well."""
+    if "ara" not in engines.get("tesseract").languages():
+        pytest.skip("Arabic language data is not installed")
+    out = convert(FIXTURES / "scanned_arabic.pdf", tmp_path,
+                  Options(engine="tesseract", languages=["eng", "ara"], dpi=400), lambda d: None)
+    md = out.markdown
+    for good in ("المتابعة الطبية", "خمس سنوات", "مراجعة نتائج التحاليل في العيادة", "## نتائج التحاليل"):
+        assert good in md, good
+    for bad in ("ااطبية", "سنئوات", "Jasall"):
+        assert bad not in md, bad
+    doc = Document(str(out.folder / out.tables[0]["file"]))
+    rows = [[c.text for c in row.cells] for row in doc.tables[0].rows]
+    assert rows[0] == ["التحليل", "النتيجة", "المعدل الطبيعي"]
+    assert rows[2] == ["الكرياتينين", "1.1", "1.2-0.6"]
 
 
 @needs_tesseract

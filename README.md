@@ -172,6 +172,7 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 
 - **Tesseract** finds tables that have **visible borders**. Borderless tables come out as text. Unlimited-OCR handles both.
 - Handwriting, stamps and very poor scans read badly with Tesseract.
+- At *Fast · 200 dpi*, small digits and decimal points can be misread (a lab range "1.2-0.6" came out as "1.2-06" in testing). Keep 300 dpi or more for documents where numbers matter.
 - In Arabic text, searching for a single word works in every viewer. Searching a phrase that mixes Arabic with numbers or English may not, in any viewer; born-digital Arabic PDFs behave the same way.
 - Unlimited-OCR needs an NVIDIA GPU with CUDA. Apple Silicon is not supported by Baidu's code, so Macs use Tesseract.
 - This build was tested with Tesseract on English and Arabic scans. Baidu's GPU model could not be run in the build environment (no GPU there). The Unlimited-OCR path is written to Baidu's published usage and output format, and tested end to end with simulated model output in that format.
@@ -232,6 +233,8 @@ Since version 1.1 the interface uses Apple's system colours, type scale and comp
 - [Unlimited-OCR](https://github.com/baidu/Unlimited-OCR) by Baidu (MIT)
 - [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft (MIT)
 - [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (Apache 2.0); HYPER-OCR also bundles Tesseract's 572-byte glyphless font, `hyperocr/outputs/glyphless.ttf`, under the same licence
-- [pillow-heif](https://github.com/bigcat88/pillow_heif) for iPhone photos (source BSD-3-Clause; its ready-made wheels bundle libheif and libde265, LGPL-3.0, and x265, GPL-2.0, so the installed package as a whole is GPL-2.0)
+- [pi-heif](https://pypi.org/project/pi-heif/) for iPhone photos: the decode-only edition of pillow-heif (BSD-3-Clause), bundling [libheif](https://github.com/strukturag/libheif) and [libde265](https://github.com/strukturag/libde265) (LGPL-3.0)
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for every library and its licence. Note that PyMuPDF is AGPL-3.0 and the pillow-heif wheels are GPL-2.0, which matters if you ever distribute HYPER-OCR or run it as a service for others.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for every library and its licence. Note that PyMuPDF is AGPL-3.0, which matters if you ever distribute HYPER-OCR or run it as a service for others.
+
+**iPhone photos (HEIC).** All the software HYPER-OCR uses to read them is free and open source; there is nothing to pay. HEIC pictures are compressed with HEVC (H.265), a video format covered by patents that are licensed through patent pools ([Access Advance](https://accessadvance.com/licensing-programs/hevc-advance/), [Via LA](https://www.via-la.com/licensing-programs/hevc-vvc/)). Those licences are taken by companies that sell devices or software with HEVC built in, and are paid per unit sold. Using HYPER-OCR yourself, or inside your organisation, involves no sale. If you plan to sell or distribute HYPER-OCR, get legal advice on HEVC first, or remove HEIC support by uninstalling `pi-heif`; every other format keeps working.

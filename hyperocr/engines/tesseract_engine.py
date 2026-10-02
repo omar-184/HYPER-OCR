@@ -52,6 +52,11 @@ CAPTION_RE = re.compile(
 )
 SCRIPT_BONUS = 8.0
 ORPHAN_BLOCK = 100000   # block numbers for text recovered outside Tesseract's own layout
+# Line heights (px) at which Tesseract reads a lone line or word reliably; used to
+# re-read unsure words and recovered lines (see _reread_word, _read_orphan).
+LINE_HEIGHTS = (36, 48)
+REREAD_LIMIT = 60          # unsure words re-read per page, least confident first
+SURE = 90.0                # a reading this confident is not re-read at another size
 
 
 def find_tesseract() -> str | None:
@@ -220,7 +225,7 @@ class TesseractEngine(Engine):
 
     def _ocr_words(self, image: np.ndarray, langs: list[str], dpi: float) -> list[TWord]:
         base = self._tsv(image, "+".join(langs), dpi)
-        if len(langs) < 2 or not base:
+        if not base:
             return base
         line_rtl = {}
         for tw in base:
@@ -230,26 +235,70 @@ class TesseractEngine(Engine):
         def score(text: str, conf: float, rtl_line: bool) -> float:
             return conf + (SCRIPT_BONUS if is_rtl(text) == rtl_line else 0.0)
 
-        # A lone, unsure Latin letter inside an Arabic line is a speck, not a word.
-        base = [tw for tw in base if not (line_rtl[tw.key] and len(tw.text) == 1
-                                          and tw.text.isascii() and tw.text.isalpha() and tw.conf < 75)]
-        # Only words with letters are re-read: models of other scripts misread digits.
-        suspicious = [tw for tw in base if any(ch.isalpha() for ch in tw.text)
-                      and (tw.conf < 80 or is_rtl(tw.text) != line_rtl[tw.key])]
-        if not suspicious:
-            return base
-        singles = [self._tsv(image, lang, dpi) for lang in langs]
-        for tw in suspicious:
+        def vote(tw: TWord, candidates) -> None:
             rtl_line = line_rtl[tw.key]
             best = score(tw.text, tw.conf, rtl_line)
-            for pass_words in singles:
-                for cand in pass_words:
-                    if _iou(cand.box, tw.box) < 0.5 or not any(ch.isalpha() for ch in cand.text):
-                        continue
-                    s = score(cand.text, cand.conf, rtl_line)
-                    if s > best:
-                        best, tw.text, tw.conf = s, cand.text, cand.conf
+            for text, conf in candidates:
+                s = score(text, conf, rtl_line)
+                if s > best:
+                    best, tw.text, tw.conf = s, text, conf
+
+        if len(langs) > 1:
+            # A lone, unsure Latin letter inside an Arabic line is a speck, not a word.
+            base = [tw for tw in base if not (line_rtl[tw.key] and len(tw.text) == 1
+                                              and tw.text.isascii() and tw.text.isalpha() and tw.conf < 75)]
+            # Only words with letters are re-read: models of other scripts misread digits.
+            suspicious = [tw for tw in base if any(ch.isalpha() for ch in tw.text)
+                          and (tw.conf < 80 or is_rtl(tw.text) != line_rtl[tw.key])]
+            singles = [self._tsv(image, lang, dpi) for lang in langs] if suspicious else []
+            for tw in suspicious:
+                vote(tw, [(c.text, c.conf) for words in singles for c in words
+                          if _iou(c.box, tw.box) >= 0.5 and any(ch.isalpha() for ch in c.text)])
+
+        # Words still unsure are read once more on their own, scaled to line heights
+        # Tesseract reads well. At 400 dpi the page reading was confidently wrong on
+        # Arabic ("ااطبية", "سنئوات"); read alone, the same words come out right.
+        bands: dict[tuple, tuple[float, float]] = {}
+        for tw in base:
+            top, bottom = bands.get(tw.key, (tw.box[1], tw.box[3]))
+            bands[tw.key] = (min(top, tw.box[1]), max(bottom, tw.box[3]))
+        unsure = sorted((tw for tw in base if tw.conf < 80 and any(ch.isalpha() for ch in tw.text)),
+                        key=lambda tw: tw.conf)[:REREAD_LIMIT]
+        for tw in unsure:
+            vote(tw, self._reread_word(image, tw.box, bands[tw.key], langs, dpi))
         return base
+
+    def _reread_word(self, image: np.ndarray, box: Box, band: tuple[float, float], langs: list[str],
+                     dpi: float) -> list[tuple[str, float]]:
+        """Readings of one word cut out with its line's full height (so dots and
+        descenders are kept), at each of LINE_HEIGHTS. Only single-word readings count."""
+        y0, y1 = int(min(box[1], band[0])), int(max(box[3], band[1]))
+        if y1 <= y0:
+            return []
+        m = int(dpi * 0.02)
+        crop = image[max(0, y0 - m): y1 + m, max(0, int(box[0]) - m): int(box[2]) + m]
+        if crop.size == 0:
+            return []
+        pt = self._ready()
+        out = []
+        for target in LINE_HEIGHTS:
+            s = target / (y1 - y0)
+            data = pt.image_to_data(_scaled(crop, s), lang="+".join(langs),
+                                    config="--psm 7 --dpi %d" % max(70, int(dpi * s)), output_type=pt.Output.DICT)
+            tokens = []
+            for raw, conf in zip(data["text"], data["conf"], strict=False):
+                text = clean_text(raw or "")
+                try:
+                    conf = float(conf)
+                except (TypeError, ValueError):
+                    continue
+                if text and conf >= 0:
+                    tokens.append((text, conf))
+            if len(tokens) == 1 and any(ch.isalpha() for ch in tokens[0][0]):
+                out.append(tokens[0])
+                if tokens[0][1] >= SURE:
+                    break
+        return out
 
     def _recover_orphans(self, gray: np.ndarray, ink: np.ndarray, rules: cv.Rules, words: list[TWord],
                          taken: list[Box], langs: list[str], dpi: float) -> list[TWord]:
@@ -272,11 +321,40 @@ class TesseractEngine(Engine):
             if not (dpi * 0.06 <= bh <= dpi * 0.6 and bw >= dpi * 0.12 and bw >= bh):
                 continue
             m = int(dpi * 0.06)
-            x0, y0, x1, y1 = max(0, x - m), max(0, y - m), min(w, x + bw + m), min(h, y + bh + m)
-            crop = cv2.copyMakeBorder(gray[y0:y1, x0:x1], 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
-            pt = self._ready()
-            data = pt.image_to_data(crop, lang="+".join(langs), config="--psm 6 --dpi %d" % int(dpi),
+            box = (max(0, x - m), max(0, y - m), min(w, x + bw + m), min(h, y + bh + m))
+            for wbox, text, conf, par, line in self._read_orphan(gray, rest, box, langs, dpi):
+                out.append(TWord(wbox, text, conf, (ORPHAN_BLOCK + i, par, line), next_order))
+                next_order += 1
+        return out
+
+    def _read_orphan(self, gray: np.ndarray, rest: np.ndarray, box: tuple[int, int, int, int],
+                     langs: list[str], dpi: float) -> list[tuple[Box, str, float, int, int]]:
+        """Read one patch of leftover ink.
+
+        Tesseract's reading of a lone line depends on its size: the heading
+        "نتائج التحاليل" came out as "ئج التحاليل" at 300 dpi, with high
+        confidence, and read perfectly when scaled to a smaller line height.
+        So a single line is also read as a line at two normalised heights, and
+        the reading whose words account for most of the leftover ink wins."""
+        x0, y0, x1, y1 = box
+        crop = gray[y0:y1, x0:x1]
+        left = rest[y0:y1, x0:x1] > 0
+        ink_cols = left.any(axis=0)
+        total = int(ink_cols.sum())
+        variants = [(1.0, 6)]
+        rows = np.flatnonzero(left.any(axis=1))
+        if total and len(rows) and len(cv.line_bands(gray, box, dpi)) <= 1:
+            height = rows[-1] - rows[0] + 1
+            variants += [(target / height, 7) for target in LINE_HEIGHTS]
+        pt = self._ready()
+        best: list[tuple[Box, str, float, int, int]] = []
+        best_score = (-1.0, -1.0)
+        for scale, psm in variants:
+            data = pt.image_to_data(_scaled(crop, scale), lang="+".join(langs),
+                                    config="--psm %d --dpi %d" % (psm, max(70, int(dpi * scale))),
                                     output_type=pt.Output.DICT)
+            found = []
+            covered = np.zeros_like(ink_cols)
             for j, raw in enumerate(data["text"]):
                 text = clean_text(raw or "")
                 try:
@@ -285,13 +363,19 @@ class TesseractEngine(Engine):
                     continue
                 if not text or conf < 70 or sum(ch.isalnum() for ch in text) < 2:
                     continue
-                bx = x0 - 20 + data["left"][j]
-                by = y0 - 20 + data["top"][j]
-                box = (float(bx), float(by), float(bx + data["width"][j]), float(by + data["height"][j]))
-                key = (ORPHAN_BLOCK + i, data["par_num"][j], data["line_num"][j])
-                out.append(TWord(box, text, conf, key, next_order))
-                next_order += 1
-        return out
+                bx0 = x0 + (data["left"][j] - 20) / scale
+                by0 = y0 + (data["top"][j] - 20) / scale
+                wbox = (bx0, by0, bx0 + data["width"][j] / scale, by0 + data["height"][j] / scale)
+                found.append((wbox, text, conf, data["par_num"][j], data["line_num"][j]))
+                covered[max(0, int(wbox[0]) - x0): max(0, int(wbox[2]) - x0 + 1)] = True
+            if not found:
+                continue
+            # Most leftover ink explained first; confidence breaks ties.
+            score = (round(float((covered & ink_cols).sum()) / max(1, total), 2),
+                     float(np.mean([f[2] for f in found])))
+            if score > best_score:
+                best, best_score = found, score
+        return best
 
     def _read_cells(self, gray: np.ndarray, grid: cv.TableGrid, words: list[TWord], langs: list[str], dpi: float) -> None:
         """OCR every cell on its own: far more reliable than page-level OCR for
@@ -314,19 +398,38 @@ class TesseractEngine(Engine):
             psm = 7 if n_lines <= 1 else 6
             # Binarise small crops ourselves: Tesseract's own threshold on a mostly
             # blank, speckled cell misreads digits ("57.9" came out as "97-9").
-            crop = 255 - cv.remove_specks(cv.remove_edge_lines(cv.ink_mask(crop), dpi), dpi)
-            crop = cv2.copyMakeBorder(crop, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
+            ink_only = 255 - cv.remove_specks(cv.remove_edge_lines(cv.ink_mask(crop), dpi), dpi)
+            crop = _scaled(ink_only, 1.0)
             text, conf = self._read_crop(crop, "+".join(langs), dpi, psm)
+
+            def score(t: str, cf: float) -> float:
+                return cf + (SCRIPT_BONUS if any(ch.isalpha() for ch in t) and mostly_rtl(t) == table_rtl else 0)
+
+            def off_script(t: str) -> int:
+                return sum(1 for w in t.split() if any(ch.isalpha() for ch in w) and is_rtl(w) != table_rtl)
+
+            best = score(text, conf)
+            rows = np.flatnonzero((ink_only < 128).any(axis=1))
+            if psm == 7 and len(rows) and conf < SURE:
+                # A one-line cell is also read scaled to line heights Tesseract reads
+                # well ("Jasall" -> "المعدل" at 400 dpi, "$7.9" -> "57.9" at 200 dpi).
+                # A reading that brings in words of the other script is not taken
+                # ("sang)! جلوبين" for "الهيموجلوبين").
+                for target in LINE_HEIGHTS:
+                    s = target / (rows[-1] - rows[0] + 1)
+                    t2, c2 = self._read_crop(_scaled(ink_only, s), "+".join(langs), max(70.0, dpi * s), 7)
+                    if t2 and score(t2, c2) > best and off_script(t2) <= off_script(text):
+                        best, text, conf = score(t2, c2), t2, c2
+                    if conf >= SURE:
+                        break
             has_letters = any(ch.isalpha() for ch in text)
             if len(langs) > 1 and has_letters and (conf < 70 or mostly_rtl(text) != table_rtl):
-                best = conf + (SCRIPT_BONUS if mostly_rtl(text) == table_rtl else 0)
                 for lang in langs:
                     t2, c2 = self._read_crop(crop, lang, dpi, psm)
                     if not any(ch.isalpha() for ch in t2):
                         continue  # numbers stay as the combined model read them
-                    s2 = c2 + (SCRIPT_BONUS if mostly_rtl(t2) == table_rtl else 0)
-                    if s2 > best:
-                        best, text = s2, t2
+                    if score(t2, c2) > best:
+                        best, text = score(t2, c2), t2
             c.text = text or page_text[id(c)]
 
     def _read_crop(self, crop: np.ndarray, lang: str, dpi: float, psm: int = 7) -> tuple[str, float]:
@@ -377,6 +480,13 @@ class TesseractEngine(Engine):
 
 
 # ---------------------------------------------------------------- assembly
+
+
+def _scaled(img: np.ndarray, scale: float) -> np.ndarray:
+    """`img` resized by `scale`, with the white margin Tesseract needs around text."""
+    if scale != 1.0:
+        img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_CUBIC)
+    return cv2.copyMakeBorder(img, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=255)
 
 
 def _inset(box: Box, d: float) -> Box:

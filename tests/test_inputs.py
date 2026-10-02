@@ -61,9 +61,11 @@ def test_unrotated_jpeg_is_kept_byte_for_byte(tmp_path):
 
 
 def test_heic_and_multipage_tiff(tmp_path):
-    heic = io.BytesIO()
-    page_image(0, 100).save(heic, "HEIF")
-    assert _upload(tmp_path, "IMG_0001.HEIC", heic.getvalue()).kind == "image"
+    # An iPhone-style HEIC (made once with an encoder; the app itself only decodes).
+    up = _upload(tmp_path, "IMG_0001.HEIC", (FIXTURES / "iphone_photo.heic").read_bytes())
+    assert up.kind == "image"
+    (data, w, h), = inputs.image_pages(up.path)
+    assert h > w and abs(h - 11.69 * 72) < 1
     tiff = io.BytesIO()
     a, b = page_image(0, 100).convert("L"), page_image(1, 100).convert("L")
     a.save(tiff, "TIFF", save_all=True, append_images=[b], dpi=(100, 100))

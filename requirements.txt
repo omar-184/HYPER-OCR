@@ -13,6 +13,6 @@ requests>=2.31
 opencv-python-headless>=4.9
 numpy>=1.26
 pillow>=10.0
-pillow-heif>=0.18     # iPhone photos (HEIC)
+pi-heif>=1.0          # iPhone photos (HEIC); decode-only, LGPL wheels
 pytesseract>=0.3.10
 python-bidi>=0.5
