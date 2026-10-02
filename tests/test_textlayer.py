@@ -60,3 +60,28 @@ def test_visible_text_is_recognised():
     doc, page = _page()
     page.insert_text((50, 100), "This page was typed, not scanned, and has real text already.")
     assert page_text_kind(page) == "visible"
+
+
+def _scan_page(doc, text=""):
+    """A page that is one big picture, optionally with a little real text on top (a fax header)."""
+    page = doc.new_page(width=595, height=842)
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 400, 560), False)
+    pix.set_rect(pix.irect, (245, 245, 245))
+    page.insert_image(page.rect, pixmap=pix)
+    if text:
+        page.insert_text((36, 20), text, fontsize=8)
+    return page
+
+
+def test_a_stamped_scan_is_not_mistaken_for_born_digital():
+    doc = pymupdf.open()
+    assert page_text_kind(_scan_page(doc, "FAX 02/10/2026 09:14 FROM CLINIC LAB  P.1")) == "stamped"
+    assert page_text_kind(_scan_page(doc)) == "none"
+
+
+def test_a_born_digital_page_with_a_background_picture_keeps_its_text():
+    doc = pymupdf.open()
+    page = _scan_page(doc)
+    for k in range(40):
+        page.insert_text((40, 60 + 18 * k), "Typed report text that already fills the page line after line, " * 2, fontsize=11)
+    assert page_text_kind(page) == "visible"

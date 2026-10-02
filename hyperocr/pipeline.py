@@ -216,11 +216,11 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
         # Searchable text layer
         existing = page_text_kind(page)
         if existing == "visible":
-            had_text.append(i + 1)          # born-digital page: its own text is already searchable
+            had_text.append(i + 1)          # born-digital page: its own text is already searchable (warned)
         else:
             if existing == "invisible":
                 remove_invisible_text(page)  # replace an older OCR layer
-            writer.add(page, result)
+            writer.add(page, result)         # a stamped scan keeps its stamp and gets OCR like any scan
         if not result.lines:
             empty.append(i + 1)
         out.words += result.word_count

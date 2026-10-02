@@ -255,20 +255,48 @@ def _inherited(doc: pymupdf.Document, xref: int, key: str) -> str | None:
 # ------------------------------------------------------------ existing text
 
 
+# A page is a scan when pictures cover this much of it...
+SCAN_IMAGE_SHARE = 0.7
+# ...unless real text covers this much: then it is a born-digital page with a background picture.
+BORN_DIGITAL_TEXT_SHARE = 0.15
+
+
 def page_text_kind(page: pymupdf.Page) -> str:
-    """'none', 'invisible' (an old OCR layer) or 'visible' (born-digital text)."""
+    """How a page's existing text should be treated:
+
+    - 'visible': born-digital text (or an existing OCR layer on a stamped scan) that is
+      already searchable, so the page keeps it and isn't OCR'd;
+    - 'invisible': an old OCR layer on a plain scan, to be replaced;
+    - 'stamped': a scan with a little real text on it (a fax header, a digital stamp):
+      OCR'd like any scan, its real text kept as it is;
+    - 'none': a plain scan.
+
+    Counting characters alone mistook a scan with a 30-character fax header for a
+    born-digital page and left the whole scan without OCR.
+    """
     visible = invisible = 0
+    text_area = 0.0
     for span in page.get_texttrace():
         n = len(span.get("chars", ()))
         if span.get("type") == 3 or span.get("opacity", 1) == 0:
             invisible += n
         else:
             visible += n
+            text_area += pymupdf.Rect(span["bbox"]).get_area()
     if visible > 20:
-        return "visible"
+        if not _is_scan(page, text_area):
+            return "visible"
+        return "visible" if invisible else "stamped"   # a stamped scan with its own OCR layer stays as it is
     if invisible:
         return "invisible"
     return "none"
+
+
+def _is_scan(page: pymupdf.Page, text_area: float) -> bool:
+    """Pictures cover most of the page and real text covers little of it."""
+    page_area = abs(page.rect.get_area()) or 1.0
+    image_area = sum(abs(pymupdf.Rect(info["bbox"]).get_area()) for info in page.get_image_info())
+    return image_area >= SCAN_IMAGE_SHARE * page_area and text_area < BORN_DIGITAL_TEXT_SHARE * page_area
 
 
 def remove_invisible_text(page: pymupdf.Page) -> None:

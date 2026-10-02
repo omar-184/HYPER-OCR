@@ -183,3 +183,17 @@ def test_password_protected_pdf_is_refused(tmp_path):
     with pytest.raises(engines.EngineError) as err:
         convert(locked, tmp_path, Options(), lambda d: None)
     assert err.value.key == "passwordProtected"
+
+
+@needs_tesseract
+def test_a_stamped_scan_still_gets_its_ocr_layer(tmp_path):
+    """A 30-character digital header on a scanned page used to cost the page its whole OCR layer."""
+    src = pymupdf.open(FIXTURES / "scanned_english.pdf")
+    src[0].insert_text((36, 20), "FAX 02/10/2026 09:14 LAB P.1", fontsize=8)
+    stamped = tmp_path / "stamped.pdf"
+    src.save(stamped)
+    out = convert(stamped, tmp_path / "out", Options(engine="tesseract", languages=["eng"]), lambda d: None)
+    pdf = out.folder / out.pdf_file
+    assert pymupdf.open(pdf)[0].search_for("Mobilisation")
+    assert pymupdf.open(pdf)[0].search_for("FAX 02/10/2026")          # the stamp itself is kept
+    assert not any(w["key"] == "keptText" for w in out.warnings)

@@ -163,7 +163,7 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
    - MuPDF-based readers;
    - Poppler-based readers.
 
-   Pages that already contain real text keep it. An old OCR layer is replaced, not doubled.
+   Born-digital pages (typed text covering the page) keep their own text and are listed in a note on the results screen. A scan with a little real text on it, such as a fax header or a digital stamp, is still a scan: it gets a full OCR layer and keeps the stamp. An old OCR layer is replaced, not doubled.
 5. **Images** are cut out at the scan's own resolution (up to 600 dpi). **Tables** become Word files.
 6. **Markdown**: the blocks are assembled into an HTML document in reading order, and Microsoft MarkItDown converts it to Markdown. Formulas come out as `$…$` and `$$…$$` LaTeX.
 
