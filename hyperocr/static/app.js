@@ -49,6 +49,11 @@
     return e;
   }
   const listJoin = (items) => items.join(H.i18n.lang === 'ar' ? '، ' : ', ');
+  // "1, 2 and 5" / "1 و2 و5"
+  function pageList(pages) {
+    const items = pages.map((n) => H.i18n.num(n));
+    try { return new Intl.ListFormat(H.i18n.lang, { style: 'long', type: 'conjunction' }).format(items); } catch { return listJoin(items); }
+  }
 
   function formatSize(bytes) {
     const units = ['B', 'KB', 'MB', 'GB'];
@@ -826,7 +831,9 @@
     for (const [w, name] of notes) {
       if (!H.i18n.has('w_' + w.key)) continue;
       const p = el('p', 'notice warn');
-      const text = t('w_' + w.key, { pages: listJoin(w.pages || []), name: name ? isolate(name) : '' }).replace(/^\s*:\s*/, '');
+      const pages = w.pages || [];
+      const key = 'w_' + w.key + (pages.length === 1 && H.i18n.has('w_' + w.key + '_one') ? '_one' : '');
+      const text = (name ? isolate(name) + ': ' : '') + t(key, { pages: pageList(pages) });
       p.append(icon('warn'), el('span', '', text));
       warnings.append(p);
     }
