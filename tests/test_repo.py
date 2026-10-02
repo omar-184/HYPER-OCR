@@ -23,3 +23,8 @@ def test_windows_setup_installs_the_tested_tesseract():
     setup = (ROOT / "setup-windows.bat").read_text(encoding="utf-8")
     assert "--version %s" % WINGET_VERSION in setup and WINGET_VERSION.startswith(TESTED_VERSION)
 
+
+def test_one_version_number():
+    from hyperocr import __version__
+
+    assert 'version = "%s"' % __version__ in (ROOT / "pyproject.toml").read_text(encoding="utf-8")
