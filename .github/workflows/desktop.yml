@@ -82,7 +82,8 @@ jobs:
           $setup = Get-ChildItem dist\HYPER-OCR-Setup-*.exe | Select-Object -First 1
           $dir = Join-Path $env:RUNNER_TEMP "HYPER-OCR app"
           # WaitForExit, not -Wait: -Wait also waits for what the installer starts, the app itself.
-          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -PassThru
+          # A folder with a space, as many Windows user folders have; Start-Process doesn't quote arguments.
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"" -PassThru
           $p.WaitForExit()
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
           # The installer opens the app; its server answers once the window is up.
