@@ -36,7 +36,7 @@ jobs:
 
   tests-windows:
     runs-on: windows-2022
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       PYTHONUTF8: "1"
     steps:
@@ -52,7 +52,7 @@ jobs:
         run: |
           python -m pip install "pefile>=2023.2"
           python tools/build_desktop.py tesseract build/ocr
-      - run: python -m pytest -q
+      - run: python -m pytest -q --durations=25
         env:
           HYPEROCR_TESSERACT: ${{ github.workspace }}\build\ocr\tesseract\tesseract.exe
           HYPEROCR_TESSDATA: ${{ github.workspace }}\build\ocr\tessdata

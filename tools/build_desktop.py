@@ -43,15 +43,15 @@ TESSERACT = {
            % (WINGET_VERSION, WINGET_VERSION),
     "sha256": "c885fff6998e0608ba4bb8ab51436e1c6775c2bafc2559a19b423e18678b60c9",
 }
-# Tesseract's standard models (tesseract-ocr/tessdata), the ones setup downloads; every test
-# passes on them with Tesseract 5.4.0 and 5.3.4.
-TESSDATA_COMMIT = "ced78752cc61322fb554c280d13360b35b8684e4"
+# Tesseract's "fast" models (tessdata_fast), as setup downloads them: every test passes with them,
+# and they read table numbers best (tools/cell_benchmark.py; the standard ones read "5.3" as "53").
+TESSDATA_COMMIT = "87416418657359cb625c412a48b6e1d6d41c29bd"
 TESSDATA = {
-    "eng": "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047",
-    "ara": "2005976778bbc14fc56a4ea8d43c6080847aeee72fcc2201488f240daca15c5b",
-    "osd": "e19f2ae860792fdf372cf48d8ce70ae5da3c4052962fe22e9de1f680c374bb0e",
+    "eng": "7d4322bd2a7749724879683fc3912cb542f19906c83bcc1a52132556427170b2",
+    "ara": "e3206d3dc87fd50c24a0fb9f01838615911d25168f4e64415244b67d2bb3e729",
+    "osd": "9cf5d576fcc47564f11265841e5ca839001e7e6f38ff7f7aacf46d15a96b00ff",
 }
-TESSDATA_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata/%s/%%s.traineddata" % TESSDATA_COMMIT
+TESSDATA_URL = "https://raw.githubusercontent.com/tesseract-ocr/tessdata_fast/%s/%%s.traineddata" % TESSDATA_COMMIT
 
 
 def fetch(url: str, sha256: str, name: str) -> Path:

@@ -40,7 +40,10 @@ def test_the_desktop_app_bundles_the_tested_tesseract_and_a_full_icon():
     spec.loader.exec_module(build)
     assert WINGET_VERSION in build.TESSERACT["url"] and len(build.TESSERACT["sha256"]) == 64
     assert sorted(build.TESSDATA) == ["ara", "eng", "osd"] and all(len(h) == 64 for h in build.TESSDATA.values())
-    assert "/tesseract-ocr/tessdata/" in build.TESSDATA_URL       # the standard models, as setup downloads
+    assert "/tesseract-ocr/tessdata_fast/" in build.TESSDATA_URL  # the models setup downloads and the tests pass with
+    from hyperocr.languages import SOURCES
+
+    assert "/tessdata_fast/" in SOURCES["fast"]
     icon = Image.open(ROOT / "packaging" / "windows" / "HYPER-OCR.ico")
     assert {(16, 16), (32, 32), (48, 48), (256, 256)} <= set(icon.info["sizes"])
     iss = (ROOT / "packaging" / "windows" / "HYPER-OCR.iss").read_text(encoding="utf-8")

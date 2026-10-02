@@ -61,6 +61,9 @@ def fake_webview(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "webview", module)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setattr("hyperocr.offline.lock_down", lambda: None)   # keep the test process online
+    # On Windows the app first checks for the Edge engine through pywebview's own module, which the
+    # stand-in doesn't have; without this it would open the browser and wait for a click.
+    monkeypatch.setattr(desktop, "edge_available", lambda: True)
     return seen
 
 

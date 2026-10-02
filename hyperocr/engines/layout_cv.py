@@ -95,16 +95,41 @@ def ink_mask(gray: np.ndarray) -> np.ndarray:
     return mask
 
 
-def remove_specks(ink: np.ndarray, dpi: float) -> np.ndarray:
-    """Drop isolated dots far smaller than any letter or diacritic."""
+def remove_specks(ink: np.ndarray, dpi: float, keep_points: bool = False) -> np.ndarray:
+    """Drop isolated dots far smaller than any letter or diacritic.
+
+    With `keep_points` (inside a table cell), a dot on the baseline of the characters either
+    side of it is kept: it is a decimal point or a comma. At 200 dpi the point of "5.3" is a
+    3-pixel dot, which this used to remove, and every such value came out without it ("53")."""
     limit = max(4, int((dpi * 0.012) ** 2))
     n, labels, stats, _ = cv2.connectedComponentsWithStats(ink, connectivity=8)
     small = np.where(stats[:, cv2.CC_STAT_AREA] <= limit)[0]
     small = small[small != 0]
+    if keep_points and small.size:
+        small = np.array([i for i in small if not _on_baseline(i, stats, limit)], dtype=int)
     out = ink.copy()
     if small.size:
         out[np.isin(labels, small)] = 0
     return out
+
+
+def _on_baseline(i: int, stats: np.ndarray, limit: int) -> bool:
+    """Is small component `i` a point between two characters: with a character on each side
+    (closer than a character's height) whose bottom is level with its own?"""
+    x, y, w, h = stats[i, :4]
+    bottom, centre = y + h, x + w / 2
+    left = right = False
+    for j in range(1, len(stats)):
+        bx, by, bw, bh, area = stats[j]
+        if j == i or area <= limit or bh < 3 * h:
+            continue
+        if abs(by + bh - bottom) > 0.2 * bh:
+            continue
+        if 0 <= centre - (bx + bw) <= bh:
+            left = True
+        elif 0 <= bx - centre <= bh:
+            right = True
+    return left and right
 
 
 def remove_edge_lines(ink: np.ndarray, dpi: float) -> np.ndarray:

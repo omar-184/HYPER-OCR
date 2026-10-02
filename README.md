@@ -77,7 +77,7 @@ To remove it: **Settings → Apps → Installed apps → HYPER-OCR → Uninstall
 
 Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `apt` and asks for your password.
 
-On macOS and Linux, setup installs the Tesseract your package manager offers and tells you when it isn't 5.4.0, the version the tests pass on. With 5.3.4 (Ubuntu 24.04) the result depends on the language files: the tests pass with Ubuntu's own (`tesseract-ocr-eng`, `-ara`, `-osd`), but with the ones setup downloads, 5.3.4 reads one table value, `5.3`, as `53`. On Ubuntu 24.04, prefer Ubuntu's: `sudo apt install tesseract-ocr-ara`, and delete the app's `tessdata` folder.
+On macOS and Linux, setup installs the Tesseract your package manager offers and tells you when it isn't 5.4.0, the version Windows uses. The tests pass on 5.4.0 and on Ubuntu 24.04's 5.3.4 with the language files setup downloads (see [Languages](#languages)).
 
 ## Use
 
@@ -156,7 +156,11 @@ Setup adds English and Arabic. To add more Tesseract languages (one-time downloa
 .venv\Scripts\python -m hyperocr.languages                      (list what is installed)
 ```
 
-Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chinese, and so on. Add `--best` for the larger, slower, sometimes more accurate models. The new languages appear as checkboxes the next time you start the app.
+Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chinese, and so on. The new languages appear as checkboxes the next time you start the app.
+
+**Which language files.** Tesseract publishes three sets. HYPER-OCR uses the **fast** ones ([tessdata_fast](https://github.com/tesseract-ocr/tessdata_fast)), as do Ubuntu's packages: every test passes with them, and in HYPER-OCR's measurements they read numbers in tables best. Across 264 table cells (the test documents at 200, 300 and 400 dpi, straight and tilted; `python tools/cell_benchmark.py`), 143 of 144 numbers came out right with them (Tesseract 5.3.4). With the larger **standard** set, which setup used before version 1.2.0, `5.3` came out as `53` at the default resolution. Add `--standard` or `--best` to the command above for the other sets.
+
+If you installed HYPER-OCR from the zip before version 1.2.0, its `tessdata` folder holds the standard files. Run the setup again, or `.venv\Scripts\python -m hyperocr.languages add eng ara osd`, to replace them with the fast ones. (The desktop app brings the fast ones itself.)
 
 ## Privacy
 

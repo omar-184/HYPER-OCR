@@ -59,6 +59,12 @@ ORPHAN_BLOCK = 100000   # block numbers for text recovered outside Tesseract's o
 LINE_HEIGHTS = (36, 48)
 REREAD_LIMIT = 60          # unsure words re-read per page, least confident first
 SURE = 90.0                # a reading this confident is not re-read at another size
+# A number in a table cell is read at these heights of its ink, and the reading most of them
+# agree on is kept. Tesseract reads digits differently at different sizes, and confidently
+# wrong at some: UB Mannheim's Windows build read "5.3" as "53" (conf 96) at the scanned size
+# and "5.3" when larger. Measured on the fixtures' 264 table cells (200-400 dpi, tilted copies)
+# with four Tesseract setups (tools/cell_benchmark.py).
+NUMBER_HEIGHTS = (28, 36, 48, 64)
 # Straighten only from this tilt on. Measured on both fixtures at 12 tilts (204 checks of table
 # cells, headings and key words): no straightening 133, from 0.3 degrees 194-196, from 0.8 degrees
 # 199. Below 0.8 Tesseract copes, and resampling the page costs more than it gains.
@@ -506,7 +512,7 @@ class TesseractEngine(Engine):
             psm = 7 if n_lines <= 1 else 6
             # Binarise small crops ourselves: Tesseract's own threshold on a mostly
             # blank, speckled cell misreads digits ("57.9" came out as "97-9").
-            ink_only = 255 - cv.remove_specks(cv.remove_edge_lines(cv.ink_mask(crop), dpi), dpi)
+            ink_only = 255 - cv.remove_specks(cv.remove_edge_lines(cv.ink_mask(crop), dpi), dpi, keep_points=True)
             crop = _scaled(ink_only, 1.0)
             text, conf = self._read_crop(crop, "+".join(langs), dpi, psm)
 
@@ -530,6 +536,8 @@ class TesseractEngine(Engine):
                         best, text, conf = score(t2, c2), t2, c2
                     if conf >= SURE:
                         break
+            if psm == 7 and len(rows) and _is_number(text):
+                text = self._vote_number(ink_only, rows[-1] - rows[0] + 1, langs, dpi) or text
             has_letters = any(ch.isalpha() for ch in text)
             if len(langs) > 1 and has_letters and (conf < 70 or mostly_rtl(text) != table_rtl):
                 for lang in langs:
@@ -539,6 +547,20 @@ class TesseractEngine(Engine):
                     if score(t2, c2) > best:
                         best, text = score(t2, c2), t2
             c.text = text or page_text[id(c)]
+
+    def _vote_number(self, ink_only: np.ndarray, height: int, langs: list[str], dpi: float) -> str:
+        """A one-line number read at each of NUMBER_HEIGHTS: the reading most of them give (spaces
+        aside), the most confident on a tie. "" when none reads as a number."""
+        votes: dict[str, list[tuple[float, str]]] = {}
+        for target in NUMBER_HEIGHTS:
+            s = target / height
+            text, conf = self._read_crop(_scaled(ink_only, s), "+".join(langs), max(70.0, dpi * s), 7)
+            if _is_number(text):
+                votes.setdefault("".join(text.split()), []).append((conf, text))
+        if not votes:
+            return ""
+        best = max(votes.values(), key=lambda v: (len(v), sum(c for c, _ in v)))
+        return max(best)[1]
 
     def _read_crop(self, crop: np.ndarray, lang: str, dpi: float, psm: int = 7) -> tuple[str, float]:
         """Text and mean confidence of a small image. A one-line reading that comes back empty is
@@ -609,6 +631,11 @@ def _reorder_lines(words: list[TWord], line_rtl: dict, keys: set) -> list[TWord]
             seen.add(tw.key)
             out.extend(order[tw.key])
     return out
+
+
+def _is_number(text: str) -> bool:
+    """A value such as "5.3", "1.2-0.6", "< 0.5" or "12%": digits, and no letters."""
+    return any(ch.isdigit() for ch in text) and not any(ch.isalpha() for ch in text)
 
 
 def _bidi_order(right_to_left: list[TWord]) -> list[TWord]:

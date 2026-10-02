@@ -2,7 +2,11 @@
 
     python -m hyperocr.languages                 # list what is installed
     python -m hyperocr.languages add eng ara     # download (needs the internet once)
-    python -m hyperocr.languages add fra deu --best
+    python -m hyperocr.languages add fra deu --standard    # or --best
+
+The files are Tesseract's "fast" models (tessdata_fast) unless asked otherwise: every test
+passes with them, and they read numbers in tables best of the three in HYPER-OCR's
+measurements (tools/cell_benchmark.py). The "standard" ones read "5.3" in a table as "53".
 
 Codes are Tesseract's: eng English, ara Arabic, fra French, deu German,
 spa Spanish, fas Persian, urd Urdu, tur Turkish, chi_sim Chinese... When this
@@ -20,6 +24,7 @@ from pathlib import Path
 from .paths import APP_ROOT as ROOT   # the checkout, or the desktop app's folder
 
 SOURCES = {
+    "fast": "https://github.com/tesseract-ocr/tessdata_fast/raw/main/%s.traineddata",
     "standard": "https://github.com/tesseract-ocr/tessdata/raw/main/%s.traineddata",
     "best": "https://github.com/tesseract-ocr/tessdata_best/raw/main/%s.traineddata",
 }
@@ -34,7 +39,7 @@ def installed() -> list[str]:
     return sorted(p.stem for p in f.glob("*.traineddata")) if f.is_dir() else []
 
 
-def add(codes: list[str], best: bool = False) -> int:
+def add(codes: list[str], kind: str = "fast") -> int:
     target = folder()
     target.mkdir(parents=True, exist_ok=True)
     failed = 0
@@ -43,7 +48,7 @@ def add(codes: list[str], best: bool = False) -> int:
             print("Skipping %r: not a Tesseract language code." % code)
             failed += 1
             continue
-        url = SOURCES["best" if best else "standard"] % code
+        url = SOURCES[kind] % code
         dest = target / (code + ".traineddata")
         print("Downloading %s ..." % code, end=" ", flush=True)
         try:
@@ -63,7 +68,8 @@ def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
     if args[:1] == ["add"]:
         codes = [a for a in args[1:] if not a.startswith("--")]
-        return add(codes, best="--best" in args)
+        kind = "best" if "--best" in args else "standard" if "--standard" in args else "fast"
+        return add(codes, kind)
     print("Language folder: %s" % folder())
     print("Installed: %s" % (", ".join(installed()) or "none (the system's Tesseract languages are used)"))
     return 0

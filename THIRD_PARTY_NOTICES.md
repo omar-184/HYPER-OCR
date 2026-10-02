@@ -30,7 +30,7 @@ HYPER-OCR uses these projects. Each keeps its own licence.
 | [PyInstaller](https://pyinstaller.org) bootloader | starting the bundled Python | GPL-2.0 with an exception that allows bundling any program |
 | [Inno Setup](https://jrsoftware.org/isinfo.php) | the installer and uninstaller | Inno Setup License (free, including commercial use) |
 | Tesseract 5.4.0, [UB Mannheim's Windows build](https://github.com/UB-Mannheim/tesseract) | text recognition | Apache 2.0 |
-| Tesseract's [language files](https://github.com/tesseract-ocr/tessdata) `eng`, `ara`, `osd` | English, Arabic, page orientation | Apache 2.0 |
+| Tesseract's [fast language files](https://github.com/tesseract-ocr/tessdata_fast) `eng`, `ara`, `osd` | English, Arabic, page orientation | Apache 2.0 |
 | The libraries Tesseract loads, from UB Mannheim's build ([MSYS2 / mingw-w64 packages](https://github.com/msys2/MINGW-packages)): Leptonica, libarchive, libtiff, libpng, libjpeg-turbo, libwebp, OpenJPEG, giflib, LERC, zlib, zstd, lz4, xz, bzip2, libdeflate, libb2, expat, OpenSSL (libcrypto) | reading images and archives for Tesseract | permissive licences (BSD, MIT, zlib, libpng, libtiff, IJG, Apache 2.0) |
 | … from the same build: GNU libiconv | character-set conversion | LGPL-2.1 or later; a separate DLL you may replace |
 | … from the same build: JBIG-KIT (libjbig) | JBIG images in TIFF files | GPL-2.0 or later, compatible with HYPER-OCR's AGPL-3.0 |

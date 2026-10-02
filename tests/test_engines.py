@@ -74,3 +74,22 @@ def test_a_rejoined_arabic_line_is_put_back_in_reading_order():
         ["الدواء", "Amlodipine", "5", "mg", "يومياً"]
     lab = line(("الكرياتينين", 400, 560), ("1.1", 340, 380), ("mg/dL", 260, 330))
     assert [w.text for w in _reorder_lines(lab, {(1, 1, 1): True}, {(1, 1, 1)})] == ["الكرياتينين", "1.1", "mg/dL"]
+
+
+def test_a_decimal_point_in_a_table_cell_is_not_taken_for_a_speck():
+    """At 200 dpi the point of "5.3" is a 3-pixel dot, the size of scanner dust, and was removed
+    before Tesseract saw it: every such value came out as "53"."""
+    import numpy as np
+
+    from hyperocr.engines.layout_cv import remove_specks
+
+    ink = np.zeros((40, 80), np.uint8)
+    ink[10:30, 10:22] = 255          # "5"
+    ink[28:30, 26:28] = 255          # "." on the baseline, between the digits
+    ink[10:30, 31:43] = 255          # "3"
+    ink[3:5, 60:62] = 255            # dust above the line
+    ink[28:30, 70:72] = 255          # a dot after the last character: no character on its right
+    kept = remove_specks(ink, 200, keep_points=True)
+    assert kept[29, 27] == 255                             # the point stays
+    assert kept[4, 61] == 0 and kept[29, 71] == 0          # the specks go
+    assert remove_specks(ink, 200)[29, 27] == 0            # (outside cells, as before)
