@@ -198,7 +198,7 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 ```
 python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install --no-deps "markitdown>=0.1.2,<0.2"     # without magika / onnxruntime, as setup does
-.venv/bin/python -m pytest          # 53 tests; the CPU tests need Tesseract with eng + ara
+.venv/bin/python -m pytest          # 55 tests; the CPU tests need Tesseract with eng + ara
 .venv/bin/python tests/fixtures/make_fixtures.py   # rebuild the scanned test PDFs
 ```
 
@@ -221,10 +221,13 @@ hyperocr/
     style.css          Apple-style tokens and components, light and dark
     motion.js          springs (damping + response), momentum projection, rubber-banding
     app.js, i18n.js    the page, English and Arabic
+design-system-apple/   the "Apple style App" design system: project/ (published to Claude Design), build.py
 design-system/         the original "Attendance Register" design system (version 1.0's look)
 ```
 
 Since version 1.1 the interface uses Apple's system colours, type scale and components, in `hyperocr/static/style.css`. Every colour is a token with a light and a dark value, secondary text uses Apple's higher-contrast greys so it passes WCAG AA, and the page honours *Reduce Motion*, *Reduce Transparency* and *Increase Contrast*. Animations are springs that start from where things are now, so you can interrupt any of them: a dragged row, a sheet you pull down, the segmented control.
+
+The same look is published in Claude Design as the **Apple style App** design system (tokens for both themes, 19 components with live previews, icons, motion rules). Its files are in `design-system-apple/project/`. After any change to the interface, run `python design-system-apple/build.py` to sync it (a test fails until you do), then republish the changed files; `CLAUDE.md` has the steps.
 
 `design-system/` keeps the green **Attendance Register** design system that version 1.0 used. It is still published in Claude Design; `python design-system/build_css.py` writes its CSS to `design-system/build/`.
 

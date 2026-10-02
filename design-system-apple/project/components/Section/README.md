@@ -1,0 +1,12 @@
+# Section
+
+An inset grouped list with an uppercase header above and an explanatory footer below: the page's basic building block.
+
+**Use** for every group of settings or results. The page provides the header text (a short noun: "Files", "Text recognition"), the rows, and an optional footer sentence that explains a consequence.
+
+- Header: `section-header` style in `label-2`, 16px in from the group's edge; 7px above the group. Arabic: no uppercase, 14px.
+- Group: `surface` with `radius-group` and `shadow-edge`; no borders.
+- Footer: `footnote` in `label-2`, 8px below. A **status footer** (`.section-footer.status`) leads with a glyph: `check` in `green-text` (ok), `warn` in `orange` (warning) or the whole line in `red-text` (error).
+- Sections are 32px apart; groups inside one section 24px apart.
+
+Don't: put headers inside the group, or use bold for them.

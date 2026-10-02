@@ -1,0 +1,213 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-10-02T08:23:56Z"
+ },
+ "title": "Apple style App",
+ "namespace": "AppleStyle",
+ "libraries": [],
+ "sections": {},
+ "groups": [
+  "Logos",
+  "Icons"
+ ],
+ "assetGroups": {
+  "Logos": {
+   "name": "Logos",
+   "tile": "l",
+   "order": [
+    "app-icon.svg"
+   ],
+   "files": {
+    "app-icon.svg": {
+     "name": "app-icon.svg",
+     "blob": "abb8e9dba27c16ae4a54613721741987",
+     "size": 825,
+     "type": "image/svg+xml"
+    }
+   }
+  },
+  "Icons": {
+   "name": "Icons",
+   "tile": "xs",
+   "order": [
+    "scan.svg",
+    "doc.svg",
+    "photo.svg",
+    "plus.svg",
+    "x.svg",
+    "handle.svg",
+    "chev.svg",
+    "updown.svg",
+    "check.svg",
+    "warn.svg",
+    "info.svg",
+    "globe.svg",
+    "appearance.svg",
+    "sun.svg",
+    "moon.svg",
+    "cpu.svg",
+    "viewfinder.svg",
+    "table.svg",
+    "text.svg",
+    "down.svg",
+    "refresh.svg",
+    "lock.svg",
+    "stack.svg"
+   ],
+   "files": {
+    "scan.svg": {
+     "name": "scan.svg",
+     "blob": "72508fb05529717c5d833934de22245f",
+     "size": 323,
+     "type": "image/svg+xml"
+    },
+    "doc.svg": {
+     "name": "doc.svg",
+     "blob": "a04d2373a5df266de013090182523379",
+     "size": 314,
+     "type": "image/svg+xml"
+    },
+    "photo.svg": {
+     "name": "photo.svg",
+     "blob": "8d7ad82d2f22dc6ed94bad74571f25dd",
+     "size": 307,
+     "type": "image/svg+xml"
+    },
+    "plus.svg": {
+     "name": "plus.svg",
+     "blob": "036079256cb747a91cd8b32c72882e33",
+     "size": 213,
+     "type": "image/svg+xml"
+    },
+    "x.svg": {
+     "name": "x.svg",
+     "blob": "5bc45e8fd6d195acba037844eab676aa",
+     "size": 217,
+     "type": "image/svg+xml"
+    },
+    "handle.svg": {
+     "name": "handle.svg",
+     "blob": "b4185b9757e48f7d65d5a4afc4de443f",
+     "size": 220,
+     "type": "image/svg+xml"
+    },
+    "chev.svg": {
+     "name": "chev.svg",
+     "blob": "633869ff28fc8751297aeb81339e05d9",
+     "size": 211,
+     "type": "image/svg+xml"
+    },
+    "updown.svg": {
+     "name": "updown.svg",
+     "blob": "f21a57d27c4b5b61c378ff54d8327701",
+     "size": 226,
+     "type": "image/svg+xml"
+    },
+    "check.svg": {
+     "name": "check.svg",
+     "blob": "de2b8d5309e91a7f8fb44b0696d3b707",
+     "size": 219,
+     "type": "image/svg+xml"
+    },
+    "warn.svg": {
+     "name": "warn.svg",
+     "blob": "6e2cc77f40ba0929375dcd556fe13220",
+     "size": 250,
+     "type": "image/svg+xml"
+    },
+    "info.svg": {
+     "name": "info.svg",
+     "blob": "a3fe6dd3c4af197c372cdc34e33090d1",
+     "size": 248,
+     "type": "image/svg+xml"
+    },
+    "globe.svg": {
+     "name": "globe.svg",
+     "blob": "0299bc3f3e574348ee119c6ad467a6de",
+     "size": 315,
+     "type": "image/svg+xml"
+    },
+    "appearance.svg": {
+     "name": "appearance.svg",
+     "blob": "a7d8e2c52c89f68088cdf2d202fe5ffc",
+     "size": 289,
+     "type": "image/svg+xml"
+    },
+    "sun.svg": {
+     "name": "sun.svg",
+     "blob": "b36bf3ece145090dfb6db91b93586b8c",
+     "size": 334,
+     "type": "image/svg+xml"
+    },
+    "moon.svg": {
+     "name": "moon.svg",
+     "blob": "519d0e0ab5bd514b7065cdc65f1e2ca9",
+     "size": 242,
+     "type": "image/svg+xml"
+    },
+    "cpu.svg": {
+     "name": "cpu.svg",
+     "blob": "df96d94ee2e54d0bc98f470c1fd0c67d",
+     "size": 342,
+     "type": "image/svg+xml"
+    },
+    "viewfinder.svg": {
+     "name": "viewfinder.svg",
+     "blob": "e4c30314277f6a806c0a815adeecdf11",
+     "size": 322,
+     "type": "image/svg+xml"
+    },
+    "table.svg": {
+     "name": "table.svg",
+     "blob": "efb4ec9d2bda075a7eac6c145adb2b11",
+     "size": 278,
+     "type": "image/svg+xml"
+    },
+    "text.svg": {
+     "name": "text.svg",
+     "blob": "b9081893be5de4d940241144524df626",
+     "size": 234,
+     "type": "image/svg+xml"
+    },
+    "down.svg": {
+     "name": "down.svg",
+     "blob": "67eda9a712c681bb42e5fcc2f9b7115e",
+     "size": 240,
+     "type": "image/svg+xml"
+    },
+    "refresh.svg": {
+     "name": "refresh.svg",
+     "blob": "5ec715b17044d18d8625ba0540215a4d",
+     "size": 293,
+     "type": "image/svg+xml"
+    },
+    "lock.svg": {
+     "name": "lock.svg",
+     "blob": "f4d0e3b05fb43566bb77e7663213e676",
+     "size": 285,
+     "type": "image/svg+xml"
+    },
+    "stack.svg": {
+     "name": "stack.svg",
+     "blob": "f6d4e1895d5a28634db53de9d6846856",
+     "size": 333,
+     "type": "image/svg+xml"
+    }
+   }
+  }
+ },
+ "blobs": {},
+ "docs": {
+  "readme": "project/README.md",
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Claude",
+  "at": "2026-10-02T08:23:56Z",
+  "via": "Claude Code",
+  "note": "Created from HYPER-OCR's interface (hyperocr/static) at version 1.1.1"
+ }
+}
