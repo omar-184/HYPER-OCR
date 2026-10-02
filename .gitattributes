@@ -5,6 +5,7 @@
 *.ttf binary
 *.heic binary
 *.png binary
+*.ico binary
 # Text files the design-system check compares stay LF on every checkout (Windows included).
 *.py text eol=lf
 *.js text eol=lf

@@ -10,3 +10,4 @@ tesseract/
 *.part
 design-system/build/
 dist/
+/build/

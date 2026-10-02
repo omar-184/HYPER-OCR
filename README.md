@@ -9,7 +9,7 @@ Turn scanned PDFs and photos of pages into:
 
 > **Check every number.** OCR misreads numbers, and it does so with full confidence: in testing `5.3` became `53` and `5 mg` became `5 9`. Every number HYPER-OCR reads is unverified, including text you copy from the searchable PDF. Compare each one with the original page before you use it. Each Word table includes a picture of the original table for exactly this, and the results screen says so every time.
 
-Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and adapts to a narrow browser window. It runs in a browser on the computer where it is installed; other devices, phones included, can't reach it, by design.
+Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and adapts to a narrow window. On Windows it is a desktop app with its own window; on macOS and Linux it runs in a browser on the computer where it is installed. Either way, other devices, phones included, can't reach it, by design.
 
 ![HYPER-OCR in light appearance, with four files ready](docs/screenshot-light.png)
 
@@ -42,9 +42,21 @@ Each Word table keeps merged cells, and repeats its header row on every printed 
 
 You need the internet **once**, during setup. After that the app never goes online.
 
-### Windows 10 or 11
+### Windows 10 or 11: the desktop app
 
-1. Download the latest release from the repository's **Releases** page (`HYPER-OCR-<version>.zip`) and unzip it somewhere, for example in `Documents`. Updates later come from the same page (see [Updating](#updating)).
+1. Download **`HYPER-OCR-Setup-<version>.exe`** from the repository's **Releases** page.
+2. Open it. It installs HYPER-OCR for you alone, in `%LOCALAPPDATA%\Programs\HYPER-OCR`: no administrator rights, nothing else to download. It brings its own Python, Tesseract 5.4.0 (the version the tests pass on) and the English and Arabic language files.
+
+   The installer isn't code-signed yet, so Windows may show **"Windows protected your PC"**: click **More info**, then **Run anyway**.
+3. Open **HYPER-OCR** from the Start menu (or the desktop icon, if you ticked it). It opens in its own window; close the window to stop it. If a conversion is running, it asks first.
+
+The window is Microsoft Edge WebView2, part of Windows 10 and 11. On the rare computer without it, HYPER-OCR opens in your browser instead, and a small message keeps it running until you click **OK**; installing the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) gives it its window.
+
+To remove it: **Settings → Apps → Installed apps → HYPER-OCR → Uninstall**. Languages you added stay in its folder, as do the window's remembered choices in `%LOCALAPPDATA%\HYPER-OCR`.
+
+### Windows, without the installer
+
+1. Download the latest release's `HYPER-OCR-<version>.zip` from the **Releases** page and unzip it somewhere, for example in `Documents`. Updates later come from the same page (see [Updating](#updating)).
 2. Double-click **`setup-windows.bat`**. It installs, where missing:
    - Python 3.12;
    - Tesseract OCR 5.4.0, the version HYPER-OCR is tested with (if another version is already installed, setup keeps it and says so: other versions read some words and numbers differently);
@@ -65,7 +77,7 @@ You need the internet **once**, during setup. After that the app never goes onli
 
 Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `apt` and asks for your password.
 
-On macOS and Linux, setup installs the Tesseract your package manager offers and tells you when it isn't 5.4.0, the version the tests pass on. The tests also pass on 5.3.4 (Ubuntu 24.04).
+On macOS and Linux, setup installs the Tesseract your package manager offers and tells you when it isn't 5.4.0, the version the tests pass on. With 5.3.4 (Ubuntu 24.04) the result depends on the language files: the tests pass with Ubuntu's own (`tesseract-ocr-eng`, `-ara`, `-osd`), but with the ones setup downloads, 5.3.4 reads one table value, `5.3`, as `53`. On Ubuntu 24.04, prefer Ubuntu's: `sudo apt install tesseract-ocr-ara`, and delete the app's `tessdata` folder.
 
 ## Use
 
@@ -91,7 +103,9 @@ The **ⓘ** button opens **About**: the version, **Software Update**, Automatic 
 
 ## Updating
 
-You download HYPER-OCR once. After that, updates replace only the app's own files: Python, the installed packages, Tesseract, the language files and the Unlimited-OCR model all stay, so nothing large is downloaded again.
+**The desktop app (Windows installer)** updates through its installer: click **ⓘ**, then **Check** next to *Software Update*, then **Update**. It downloads the release's `HYPER-OCR-Setup-<version>.exe`, checks it against the SHA-256 published with it (a download that doesn't match is refused), and starts it: HYPER-OCR closes, the installer replaces it, Tesseract included, and opens the new version. Languages you added stay. No administrator prompt appears, as it is installed for you alone.
+
+**Installed from the zip**, HYPER-OCR is downloaded once. After that, updates replace only the app's own files: Python, the installed packages, Tesseract, the language files and the Unlimited-OCR model all stay, so nothing large is downloaded again.
 
 **In the app:** click **ⓘ**, then **Check** next to *Software Update*. If a newer version exists, the button becomes **Update**. Click it and HYPER-OCR downloads the new version from GitHub, installs it, restarts itself and reloads the page. (The button waits while a conversion is running.)
 
@@ -107,7 +121,7 @@ What an update does:
 
 The GPU packages are never downloaded unless the experimental GPU engine is switched on.
 
-**Publishing a release (for the maintainer).** Commit, set the version in `hyperocr/__init__.py`, run `python tools/make_release.py`, then create a GitHub Release tagged `v<version>` on that commit with the two files from `dist/` attached. Nothing reaches users before that.
+**Publishing a release (for the maintainer).** Set the version in `hyperocr/__init__.py` (and `pyproject.toml`), commit, and push a tag `v<version>` on that commit (`git tag v1.2.0 && git push origin v1.2.0`, or create the tag when drafting a release on GitHub). GitHub then runs every test on Linux and Windows, builds the installer, installs and checks it, and publishes the release with four files: `HYPER-OCR-<version>.zip`, `HYPER-OCR-Setup-<version>.exe` and a `.sha256` for each. Nothing reaches users before that. (`python tools/make_release.py` still builds the zip by hand.)
 
 Updating is the only thing in HYPER-OCR that goes online, and only when you click it. It runs as a separate program; the converter itself stays offline. The app is started by a small supervisor, so after an update it comes back on its own at the same address.
 
@@ -197,19 +211,23 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 | "Couldn't reach GitHub" when updating | Check the internet connection and try again. Nothing was changed. |
 | An update failed | The previous version was restored from `.backup/`. Try again, or run `update-windows.bat` / `./update.sh` to see the details. |
 | The page didn't come back after an update | Close the black window and start the app again. |
+| The desktop app opens in the browser, with a message box | Its window needs the Microsoft Edge WebView2 Runtime; install it from <https://developer.microsoft.com/microsoft-edge/webview2/>. Until then it works in the browser while the message stays open. |
+| The desktop app shows an error, or won't start | Its log is `%LOCALAPPDATA%\HYPER-OCR\hyperocr.log` (errors and progress only, never document text), replaced each time it starts. |
 
 ## For developers
 
 ```
 python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install --no-deps "markitdown>=0.1.2,<0.2"     # without magika / onnxruntime, as setup does
-.venv/bin/python -m pytest          # the CPU tests need Tesseract (5.4.0, or 5.3.4) with eng + ara + osd
+.venv/bin/python -m pytest          # the CPU tests need Tesseract with eng + ara + osd (see Install: Linux)
 .venv/bin/python tests/fixtures/make_fixtures.py   # rebuild the scanned test PDFs
 ```
 
 ```
 hyperocr/
   __main__.py          supervisor: starts the local server, restarts it after an update
+  desktop.py           the desktop app: the same server inside the app, shown in its own window
+  paths.py             where the app's files are (a checkout, or the installed desktop app)
   server.py, jobs.py   JSON API on 127.0.0.1, one worker thread, clean-up
   inputs.py            uploads: PDFs and pictures (HEIC, EXIF orientation), combined or one by one
   pipeline.py          one conversion, start to finish
@@ -227,12 +245,28 @@ hyperocr/
     motion.js          springs (damping + response), momentum projection, rubber-banding
     app.js, i18n.js    the page, English and Arabic
 design-system-apple/   the "Apple style App" design system: project/ (published to Claude Design), build.py
+packaging/             the desktop app's recipe: HYPER-OCR.spec (PyInstaller), windows/HYPER-OCR.iss (installer), icon
+tools/                 build_desktop.py, make_release.py, make_icon.py
+.github/workflows/     tests on Linux and Windows, the Windows app, releases
 design-system/         the original "Attendance Register" design system (version 1.0's look)
 ```
 
 Since version 1.1 the interface uses Apple's system colours, type scale and components, in `hyperocr/static/style.css`. Every colour is a token with a light and a dark value, secondary text uses Apple's higher-contrast greys so it passes WCAG AA, and the page honours *Reduce Motion*, *Reduce Transparency* and *Increase Contrast*. Animations are springs that start from where things are now, so you can interrupt any of them: a dragged row, a sheet you pull down, the segmented control.
 
 The same look is published in Claude Design as the **Apple style App** design system (tokens for both themes, 19 components with live previews, icons, motion rules). Its files are in `design-system-apple/project/`. After any change to the interface, run `python design-system-apple/build.py` to sync it (a test fails until you do), then republish the changed files; `CLAUDE.md` has the steps.
+
+### Building the desktop app
+
+GitHub builds it on every push (**Actions → Tests and Windows app → HYPER-OCR-Setup**, kept 90 days) and publishes it with each release tag. To build it on a Windows computer yourself, with Python 3.12, [7-Zip](https://www.7-zip.org) and [Inno Setup 6](https://jrsoftware.org/isinfo.php):
+
+```
+py -3.12 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt -r requirements-desktop.txt
+.venv\Scripts\pip install --no-deps "markitdown>=0.1.2,<0.2"
+.venv\Scripts\python tools\build_desktop.py app --installer
+```
+
+It downloads Tesseract 5.4.0 (UB Mannheim's build, the one `setup-windows.bat` installs) and the English, Arabic and orientation language files, refusing anything whose SHA-256 differs from the one pinned in `tools/build_desktop.py`. It builds `dist\HYPER-OCR\` with PyInstaller, puts Tesseract and the languages next to `HYPER-OCR.exe`, has the app convert both test documents with them (`HYPER-OCR.exe --self-test`), and only then makes `dist\HYPER-OCR-Setup-<version>.exe` and its `.sha256`. On GitHub the installer is then installed, opened, used and uninstalled once more before it is kept.
 
 `design-system/` keeps the green **Attendance Register** design system that version 1.0 used. It is still published in Claude Design; `python design-system/build_css.py` writes its CSS to `design-system/build/`.
 

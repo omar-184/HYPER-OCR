@@ -1,0 +1,142 @@
+# Tests on Linux and Windows, and the Windows desktop app (HYPER-OCR.exe and its installer).
+# A tag v<version> also publishes the GitHub Release the in-app updater installs: the source zip
+# and the installer, each with its .sha256.
+name: Tests and Windows app
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  tests-linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tesseract (Ubuntu's 5.3.4 and its language files)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-ara tesseract-ocr-osd
+      - name: Packages
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
+      - run: python -m pytest -q
+
+  tests-windows:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Packages
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
+      - name: Tesseract 5.4.0 and its languages, as the desktop app has them (pinned, checked)
+        run: python tools/build_desktop.py tesseract build/ocr
+      - run: python -m pytest -q
+        env:
+          HYPEROCR_TESSERACT: ${{ github.workspace }}\build\ocr\tesseract\tesseract.exe
+          HYPEROCR_TESSDATA: ${{ github.workspace }}\build\ocr\tessdata
+
+  windows-app:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Packages
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
+          python -m pip install -r requirements-desktop.txt
+      - name: Inno Setup
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Build HYPER-OCR.exe, check it converts the test documents, build the installer
+        run: python tools/build_desktop.py app --installer
+      - name: Install it as a person would (silently), open it, convert with it, uninstall it
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\HYPER-OCR-Setup-*.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP "HYPER-OCR app"
+          $p = Start-Process $setup.FullName -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=$dir" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          # The installer opens the app; its server answers once the window is up.
+          $ok = $false
+          foreach ($i in 1..60) {
+            try { $r = Invoke-RestMethod http://127.0.0.1:8766/api/system -TimeoutSec 2; $ok = $true; break } catch { Start-Sleep 1 }
+          }
+          Get-Content "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -ErrorAction SilentlyContinue
+          if (-not $ok) { throw "the installed app did not start" }
+          "Installed app: version $($r.version), desktop $($r.desktop), languages $($r.languages -join ', ')"
+          if (-not $r.desktop) { throw "not running as the desktop app" }
+          Stop-Process -Name HYPER-OCR -Force -ErrorAction SilentlyContinue
+          Start-Sleep 2
+          $out = Join-Path $env:RUNNER_TEMP "installed-self-test"
+          $t = Start-Process "$dir\HYPER-OCR.exe" -ArgumentList '--self-test', "`"$pwd\tests\fixtures\scanned_arabic.pdf`"", "`"$out`"", '--lang', 'eng+ara' -Wait -PassThru
+          $report = Get-Content "$out\self-test.json" -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($t.ExitCode -ne 0 -or -not $report.markdown.StartsWith("# تقرير المتابعة الطبية")) { throw "installed self-test failed: $($report.error)" }
+          "Installed self-test: Tesseract $($report.tesseract_version), $($report.pages) page"
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          Start-Sleep 3
+          if (Test-Path "$dir\HYPER-OCR.exe") { throw "uninstall left the app behind" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HYPER-OCR-Setup
+          path: |
+            dist/HYPER-OCR-Setup-*.exe
+            dist/HYPER-OCR-Setup-*.exe.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [tests-linux, tests-windows, windows-app]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The tag names the app's version
+        run: |
+          v=$(python -c "import re; print(re.search(r'__version__ = \"([\d.]+)\"', open('hyperocr/__init__.py').read()).group(1))")
+          test "v$v" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, app version $v"; exit 1; }
+      - name: Source zip
+        run: python tools/make_release.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: HYPER-OCR-Setup
+          path: dist
+      - name: Publish the release (or add the files to the one already drafted for this tag)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          files=$(ls dist/HYPER-OCR-*)
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" $files --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" $files --verify-tag --title "HYPER-OCR ${GITHUB_REF_NAME#v}" \
+              --notes "Windows: download HYPER-OCR-Setup-${GITHUB_REF_NAME#v}.exe and open it. Other systems: the zip, then setup (see the README)."
+          fi
