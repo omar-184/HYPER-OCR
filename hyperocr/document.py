@@ -64,6 +64,7 @@ class PageResult:
     blocks: list[Block] = field(default_factory=list)
     lines: list[Line] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    skew: float = 0.0       # degrees the page was straightened by before reading (0 = straight)
 
     @property
     def word_count(self) -> int:

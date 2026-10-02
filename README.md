@@ -158,7 +158,7 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 
 ## How it works
 
-1. Pictures are first placed on PDF pages, one picture per page (JPEGs are kept byte for byte). Each page is then rendered to an image (300 dpi by default), and Tesseract's orientation detection checks which way up it is: an upside-down or sideways page is turned upright by its display rotation (the scan itself isn't changed), and the results screen lists the pages it turned.
+1. Pictures are first placed on PDF pages, one picture per page (JPEGs are kept byte for byte). Each page is then rendered to an image (300 dpi by default), and Tesseract's orientation detection checks which way up it is: an upside-down or sideways page is turned upright by its display rotation (the scan itself isn't changed), and the results screen lists the pages it turned. A page scanned slightly crooked (0.8 to 5 degrees) is read straightened; the text layer, pictures and tables are then placed back on the page as scanned.
 2. **Unlimited-OCR** (experimental, off by default) returns the page as tagged blocks: `<|det|>text [113, 567, 884, 698]<|/det|>…`. Each block has a type (title, text, table, image, caption, formula…) and a box on a 0–1000 grid. Tables come back as HTML. The model doesn't report individual lines, so HYPER-OCR finds each block's text lines in the image and spreads the block's words over them.
 3. **Tesseract** reads words with their exact positions. First, HYPER-OCR removes scanner specks with a median filter; specks otherwise turn into fake Arabic dots. Then:
    - it finds bordered tables from their ruling lines, merged cells included, and reads each cell separately;

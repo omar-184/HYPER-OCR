@@ -57,6 +57,10 @@ ORPHAN_BLOCK = 100000   # block numbers for text recovered outside Tesseract's o
 LINE_HEIGHTS = (36, 48)
 REREAD_LIMIT = 60          # unsure words re-read per page, least confident first
 SURE = 90.0                # a reading this confident is not re-read at another size
+# Straighten only from this tilt on. Measured on both fixtures at 12 tilts (204 checks of table
+# cells, headings and key words): no straightening 133, from 0.3 degrees 194-196, from 0.8 degrees
+# 199. Below 0.8 Tesseract copes, and resampling the page costs more than it gains.
+DESKEW_FROM = 0.8
 OSD_DPI = 150              # page orientation is read at this resolution: at 100 dpi it guessed wrong
 OSD_MIN_CONF = 3.0         # turned pages measured 6.2-13.8; wrong guesses at 100 dpi were below 0.2
 
@@ -158,6 +162,27 @@ class TesseractEngine(Engine):
     # ------------------------------------------------------------ OCR
 
     def process(self, image: np.ndarray, index: int, dpi: float, options: Options) -> PageResult:
+        """Read one page. A slightly tilted scan (up to 5 degrees) is straightened first: at 1 degree
+        a table's columns ran together, at 2 degrees the table was lost. The boxes are then moved
+        back onto the page as scanned, which is what the searchable PDF and the crops use."""
+        angle = cv.skew_angle(cv.to_gray(image), dpi)
+        if abs(angle) < DESKEW_FROM:
+            return self._read(image, index, dpi, options)
+        straight, m = cv.rotate_bound(image, angle)
+        result = self._read(straight, index, dpi, options)
+        h, w = image.shape[:2]
+        back = cv2.invertAffineTransform(m)
+        for line in result.lines:
+            line.box = cv.map_box(line.box, back, w, h)
+            for word in line.words:
+                word.box = cv.map_box(word.box, back, w, h)
+        for block in result.blocks:
+            block.box = cv.map_box(block.box, back, w, h)
+        result.width, result.height = w, h
+        result.skew = angle
+        return result
+
+    def _read(self, image: np.ndarray, index: int, dpi: float, options: Options) -> PageResult:
         langs = self.usable_languages(options.languages)
         gray = cv.denoise(cv.to_gray(image))
         h, w = gray.shape
@@ -567,7 +592,9 @@ def _paragraph_blocks(words: list[TWord], page_h: int, ink: np.ndarray) -> list[
         if not region.any():
             return size, 0.0
         dist = cv2.distanceTransform(region, cv2.DIST_L2, 3)
-        return size, float(2 * np.median(dist[dist > 0]))
+        stroke = 2.0 * float(np.median(dist[dist > 0]))
+        # A box with no background pixel (solid ink) has no measurable stroke, not an infinite one.
+        return size, stroke if stroke < max(region.shape) else 0.0
 
     all_lines = [(line, stats(line)) for group in pars.values() for line in group]
     body_lines = [st for line, st in all_lines if len(line) >= 3] or [st for _, st in all_lines]

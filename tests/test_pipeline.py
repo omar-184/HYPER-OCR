@@ -233,3 +233,36 @@ def test_upright_pages_are_left_alone(tmp_path):
                   lambda d: None)
     assert not any(w["key"] == "turned" for w in out.warnings)
     assert [p.rotation for p in pymupdf.open(out.folder / out.pdf_file)] == [0]
+
+
+def _tilted_copy(tmp_path, angle: float):
+    """The English fixture rescanned a little crooked (counter-clockwise for positive angles)."""
+    import cv2
+
+    src = pymupdf.open(FIXTURES / "scanned_english.pdf")
+    out = pymupdf.open()
+    for page in src:
+        pix = page.get_pixmap(dpi=200, colorspace=pymupdf.csGRAY)
+        img = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w)
+        m = cv2.getRotationMatrix2D((pix.w / 2, pix.h / 2), angle, 1.0)
+        img = np.ascontiguousarray(cv2.warpAffine(img, m, (pix.w, pix.h), flags=cv2.INTER_LINEAR, borderValue=255))
+        new = out.new_page(width=page.rect.width, height=page.rect.height)
+        new.insert_image(new.rect, pixmap=pymupdf.Pixmap(pymupdf.csGRAY, pix.w, pix.h, img.tobytes(), False))
+    path = tmp_path / ("tilted_%s.pdf" % angle)
+    out.save(path)
+    return path
+
+
+@needs_tesseract
+@pytest.mark.parametrize("angle", [1.0, 2.0, -2.0])
+def test_a_tilted_scan_still_gives_the_right_table(tmp_path, angle):
+    """Before straightening, 1 degree ran the table's columns together and 2 degrees lost it."""
+    out = convert(_tilted_copy(tmp_path, angle), tmp_path / "out", Options(engine="tesseract", languages=["eng"]),
+                  lambda d: None)
+    assert [(t["rows"], t["cols"]) for t in out.tables] == [(4, 4)]
+    doc = Document(str(out.folder / out.tables[0]["file"]))
+    cells = [[c.text for c in row.cells] for row in doc.tables[0].rows]
+    assert cells == [["Group", "Patients", "Mean age", "Stay (days)"], ["Day 1", "96", "54.2", "4.1"],
+                     ["Day 2", "88", "57.9", "5.3"], ["Day 3+", "56", "61.4", "7.8"]]
+    pdf = pymupdf.open(out.folder / out.pdf_file)
+    assert pdf[0].search_for("Mobilisation") and pdf[1].search_for("Baseline")

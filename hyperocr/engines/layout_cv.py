@@ -4,6 +4,7 @@
 * figure regions (pictures, charts) once the text is known
 * text-line bands inside a block, to place the searchable text layer when an
   engine only reports whole-block boxes
+* the skew of a slightly tilted scan, to straighten it before reading
 """
 
 from __future__ import annotations
@@ -14,6 +15,65 @@ import cv2
 import numpy as np
 
 from ..document import Box, Line, area, intersection, overlap_ratio
+
+
+SKEW_LIMIT = 5.0      # degrees either way; more than that is not a slightly tilted scan
+SKEW_DPI = 100        # the angle is measured on a copy at this resolution
+SKEW_MIN_GAIN = 1.02  # the straight reading must be this much sharper than the page as it is
+
+
+def skew_angle(gray: np.ndarray, dpi: float) -> float:
+    """The angle (degrees, counter-clockwise positive, as cv2.getRotationMatrix2D) that makes
+    the page's lines of text and table rules horizontal; 0.0 when the page is straight or has
+    too little ink to tell.
+
+    Rows of a straight page alternate between dense ink and blank gaps; rotate the ink until
+    the row profile is sharpest (largest sum of squared differences between neighbouring rows).
+    """
+    scale = min(1.0, SKEW_DPI / max(dpi, 1.0))
+    ink = ink_mask(gray)
+    small = cv2.resize(ink, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA) if scale < 1.0 else ink
+    small = (small > 64).astype(np.float32)
+    if small.sum() < 200:
+        return 0.0
+    h, w = small.shape
+    center = (w / 2.0, h / 2.0)
+
+    def sharpness(angle: float) -> float:
+        m = cv2.getRotationMatrix2D(center, angle, 1.0)
+        rotated = cv2.warpAffine(small, m, (w, h), flags=cv2.INTER_NEAREST, borderValue=0)
+        rows = rotated.sum(axis=1)
+        return float(np.sum(np.diff(rows) ** 2))
+
+    best = max(np.arange(-SKEW_LIMIT, SKEW_LIMIT + 0.01, 0.5), key=sharpness)
+    for step in (0.1, 0.02):
+        best = max(np.arange(best - 5 * step, best + 5 * step + step / 2, step), key=sharpness)
+    best = float(np.clip(best, -SKEW_LIMIT, SKEW_LIMIT))
+    if abs(best) < 0.05 or sharpness(best) < SKEW_MIN_GAIN * sharpness(0.0):
+        return 0.0
+    return round(best, 2)
+
+
+def rotate_bound(image: np.ndarray, angle: float) -> tuple[np.ndarray, np.ndarray]:
+    """`image` rotated by `angle` on a canvas large enough to keep every corner (white
+    around it), and the 2x3 matrix that maps original points onto the new canvas."""
+    h, w = image.shape[:2]
+    m = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle, 1.0)
+    cos, sin = abs(m[0, 0]), abs(m[0, 1])
+    nw, nh = int(round(h * sin + w * cos)), int(round(h * cos + w * sin))
+    m[0, 2] += nw / 2.0 - w / 2.0
+    m[1, 2] += nh / 2.0 - h / 2.0
+    white = (255,) * image.shape[2] if image.ndim == 3 else 255
+    return cv2.warpAffine(image, m, (nw, nh), flags=cv2.INTER_CUBIC, borderValue=white), m
+
+
+def map_box(box: Box, m: np.ndarray, width: int, height: int) -> Box:
+    """The axis-aligned box, inside a `width` x `height` image, around `box` moved by matrix `m`."""
+    x0, y0, x1, y1 = box
+    pts = np.array([[x0, y0], [x1, y0], [x0, y1], [x1, y1]], dtype=np.float64)
+    moved = pts @ m[:, :2].T + m[:, 2]
+    return (float(max(0.0, moved[:, 0].min())), float(max(0.0, moved[:, 1].min())),
+            float(min(width, moved[:, 0].max())), float(min(height, moved[:, 1].max())))
 
 
 def to_gray(image: np.ndarray) -> np.ndarray:
