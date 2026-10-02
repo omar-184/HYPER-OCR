@@ -59,7 +59,8 @@ def fake_webview(monkeypatch, tmp_path):
 
     module.create_window, module.start = create_window, start
     monkeypatch.setitem(sys.modules, "webview", module)
-    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))     # the window's settings: Linux,
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))      # Windows
     monkeypatch.setattr("hyperocr.offline.lock_down", lambda: None)   # keep the test process online
     # On Windows the app first checks for the Edge engine through pywebview's own module, which the
     # stand-in doesn't have; without this it would open the browser and wait for a click.
@@ -101,6 +102,7 @@ def test_closing_during_a_conversion_asks_first_in_its_language():
 def test_without_a_window_the_app_opens_in_the_browser(monkeypatch, tmp_path):
     monkeypatch.setattr("hyperocr.offline.lock_down", lambda: None)
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))
     monkeypatch.setattr(desktop, "open_window", lambda url, jobs, shown: False)
     opened = []
     monkeypatch.setattr(desktop, "open_in_browser", opened.append)
