@@ -119,6 +119,10 @@
     err_ocrFailed: { en: 'Text recognition stopped with an error ({detail}). Try again, or choose Tesseract.', ar: 'توقف التعرّف على النص بسبب خطأ ({detail}). حاول مرة أخرى أو اختر Tesseract.' },
     err_serverUnreachable: { en: 'The local Unlimited-OCR server isn’t answering. Start it, or choose another engine.', ar: 'الخادم المحلي لـ Unlimited-OCR لا يستجيب. شغّله أو اختر محركاً آخر.' },
     err_outOfMemory: { en: 'This computer ran out of memory. Choose the Fast resolution, or convert fewer pages at a time.', ar: 'نفدت ذاكرة هذا الجهاز. اختر الدقة السريعة أو حوّل صفحات أقل في كل مرة.' },
+    err_jobLost: {
+      en: 'This conversion is no longer on this computer: HYPER-OCR was restarted, or its results were more than an hour old. Convert the files again.',
+      ar: 'لم يعد هذا التحويل موجوداً على هذا الجهاز: أُعيد تشغيل HYPER-OCR أو مضت على نتائجه أكثر من ساعة. حوّل الملفات مرة أخرى.',
+    },
     err_unexpected: { en: 'Something went wrong: {detail}', ar: 'حدث خطأ: {detail}' },
     err_network: { en: 'HYPER-OCR stopped responding. Make sure its window is still open, then try again.', ar: 'توقف HYPER-OCR عن الاستجابة. تأكد أن نافذته ما زالت مفتوحة ثم حاول مرة أخرى.' },
 

@@ -47,7 +47,9 @@ def create_app(jobs: JobManager | None = None) -> Flask:
                     "engines": described,
                     "auto": auto,
                     "languages": langs,
-                    "defaults": {"languages": [l for l in ("eng", "ara") if l in langs] or langs[:1], "dpi": 300},
+                    # The languages ticked until someone chooses: the interface language's own.
+                    "defaults": {"languages": default_languages(langs, "en"), "dpi": 300,
+                                 "languagesByUi": {ui: default_languages(langs, ui) for ui in ("en", "ar")}},
                 })
             return dict(system_cache)
 
@@ -230,6 +232,13 @@ def _job(manager: JobManager, job_id: str):
     return job
 
 
+def default_languages(installed: list[str], ui_lang) -> list[str]:
+    """English documents read as English only (Arabic slows them and adds misreads);
+    with the Arabic interface, Arabic plus English for the drug names and units."""
+    wanted = ("eng", "ara") if ui_lang == "ar" else ("eng",)
+    return [l for l in wanted if l in installed] or installed[:1]
+
+
 def _options(raw: dict, info: dict) -> Options:
     engine = raw.get("engine") if raw.get("engine") in ("auto", "unlimited", "unlimited-server", "tesseract") else "auto"
     langs = [l for l in raw.get("languages") or [] if isinstance(l, str) and l in info["languages"]]
@@ -239,7 +248,7 @@ def _options(raw: dict, info: dict) -> Options:
         dpi = 300
     return Options(
         engine=engine,
-        languages=langs or info["defaults"]["languages"] or ["eng"],
+        languages=langs or default_languages(info["languages"], raw.get("ui_lang")) or ["eng"],
         dpi=dpi if dpi in (200, 300, 400) else 300,
         skip_furniture=bool(raw.get("skip_furniture", True)),
         ui_lang="ar" if raw.get("ui_lang") == "ar" else "en",

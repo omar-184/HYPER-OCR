@@ -95,3 +95,21 @@ def test_several_pictures_each_on_its_own(client, tmp_path):
     assert job["state"] == "done", job
     assert [d["folder"] for d in job["result"]["documents"]] == ["IMG_1", "IMG_2"]
     assert job["result"]["zip"] == "HYPER-OCR_2-documents.zip"
+
+
+def test_default_languages_follow_the_interface_language(client):
+    """Arabic is no longer added to English documents unasked (it slows them and adds misreads)."""
+    from hyperocr.server import _options, default_languages
+
+    installed = ["ara", "eng", "fra", "osd"]
+    assert default_languages(installed, "en") == ["eng"]
+    assert default_languages(installed, "ar") == ["eng", "ara"]
+    assert default_languages(["fra"], "en") == ["fra"]
+    info = {"languages": installed, "defaults": {"languages": ["eng"]}}
+    assert _options({"ui_lang": "en"}, info).languages == ["eng"]
+    assert _options({"ui_lang": "ar"}, info).languages == ["eng", "ara"]
+    assert _options({"ui_lang": "en", "languages": ["ara"]}, info).languages == ["ara"]     # a choice wins
+    system = client.get("/api/system").get_json()
+    if "eng" in system["languages"]:
+        assert system["defaults"]["languages"] == ["eng"]
+        assert system["defaults"]["languagesByUi"]["en"] == ["eng"]

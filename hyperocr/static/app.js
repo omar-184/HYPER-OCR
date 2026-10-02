@@ -291,7 +291,9 @@
     const sys = state.system;
     const saved = store.get('languages');
     const valid = Array.isArray(saved) ? saved.filter((l) => sys.languages.includes(l)) : [];
-    return valid.length ? valid : sys.defaults.languages;
+    if (valid.length) return valid;
+    const byUi = sys.defaults.languagesByUi;          // until chosen: the interface language's own
+    return (byUi && byUi[H.i18n.lang]) || sys.defaults.languages;
   }
 
   function renderLanguages() {
@@ -639,6 +641,8 @@
     form.append('options', JSON.stringify(options));
     state.busy = true;
     state.timing = null;
+    state.pollFailures = 0;
+    state.saidStage = '';
     updateStart();
     showSetup(false);
     $('sec-results').hidden = true;
@@ -673,6 +677,7 @@
       try { body = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
       if (xhr.status === 201) {
         state.job = body;
+        store.set('job', body.id);        // a reload finds it again
         renderJob(body);
         poll();
       } else {
@@ -684,25 +689,34 @@
     xhr.send(form);
   }
 
-  function poll() {
+  // A status check that fails is retried, for about half a minute; the job keeps running on the
+  // computer meanwhile and is never deleted because of it. Only a job the server no longer has
+  // (it was restarted, or the results expired) ends the wait.
+  const POLL_RETRIES = 25;
+
+  function poll(delay = 600) {
     clearTimeout(state.pollTimer);
     if (!state.job || !state.job.id) return;
     state.pollTimer = setTimeout(async () => {
       let job;
       try {
         const resp = await fetch('/api/jobs/' + state.job.id, { cache: 'no-store' });
+        if (resp.status === 404) { store.set('job', null); fail('jobLost', '', { keep: true }); return; }
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         job = await resp.json();
       } catch {
-        fail('network');
+        state.pollFailures = (state.pollFailures || 0) + 1;
+        if (state.pollFailures > POLL_RETRIES) { fail('network', '', { keep: true }); return; }
+        poll(Math.min(3000, 600 * state.pollFailures));
         return;
       }
+      state.pollFailures = 0;
       state.job = job;
       if (job.state === 'done') showResults(job, true);
       else if (job.state === 'failed') { renderJob(job); fail(job.error, job.detail); }
       else if (job.state === 'cancelled') backToSetup();
       else { renderJob(job); poll(); }
-    }, 600);
+    }, delay);
   }
 
   function setPreview(url) {
@@ -743,6 +757,9 @@
     $('bar').setAttribute('aria-valuenow', String(percent));
     $('sec-progress').querySelector('.progress-card').classList.toggle('idle', stage !== 'reading');
     if (!indeterminate) bar.to(percent / 100);
+    // Screen readers hear each stage once (and each new document), not every status check.
+    const said = stage + ':' + (job.doc || 0);
+    if (said !== state.saidStage && stage !== 'uploading') { state.saidStage = said; announce(title); }
   }
 
   function estimate(job) {
@@ -763,7 +780,7 @@
     }
   });
 
-  function fail(key, detail) {
+  function fail(key, detail, { keep = false } = {}) {
     clearTimeout(state.pollTimer);
     state.busy = false;
     $('cancel').hidden = true;
@@ -773,7 +790,8 @@
     box.replaceChildren(icon('warn'), el('span', '', t(msgKey, { detail: isolate(detail || key || '') })));
     box.hidden = false;
     $('sec-progress').querySelector('.progress-card').hidden = true;
-    forgetJob();
+    if (keep) state.job = null;     // not deleted: it may still be finishing; a reload re-attaches
+    else forgetJob();
     showSetup(true);
     updateStart();
   }
@@ -964,6 +982,7 @@
   async function forgetJob() {
     const job = state.job;
     state.job = null;
+    store.set('job', null);
     if (job && job.id) {
       try { await fetch('/api/jobs/' + job.id, { method: 'DELETE', headers: { 'X-HyperOCR': '1' } }); } catch { /* closed */ }
     }
@@ -1216,7 +1235,39 @@
 
   // ================================================================ start
 
+  // After a reload: pick up the conversion this browser started, running or finished.
+  async function reattach() {
+    const id = store.get('job');
+    if (typeof id !== 'string' || !/^[0-9a-f]{8,32}$/.test(id)) return;
+    let job;
+    try {
+      const resp = await fetch('/api/jobs/' + id, { cache: 'no-store' });
+      if (!resp.ok) { store.set('job', null); return; }
+      job = await resp.json();
+    } catch { return; }
+    state.job = job;
+    state.pollFailures = 0;
+    if (job.state === 'done' && job.result) {
+      showSetup(false);
+      showResults(job, false);
+    } else if (job.state === 'queued' || job.state === 'running') {
+      state.busy = true;
+      showSetup(false);
+      $('sec-results').hidden = true;
+      $('job-error').hidden = true;
+      $('cancel').hidden = false;
+      $('sec-progress').querySelector('.progress-card').hidden = false;
+      $('sec-progress').hidden = false;
+      renderJob(job);
+      poll();
+    } else {
+      state.job = null;
+      store.set('job', null);
+    }
+  }
+
   renderAll();
   loadSystem();
+  reattach();
   onScroll();
 })(window.HOCR);

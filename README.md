@@ -80,9 +80,9 @@ On macOS and Linux, setup installs the Tesseract your package manager offers and
 3. **Text recognition.**
    - *Engine*: **Automatic** is Tesseract. (The experimental GPU engine is off; see [The OCR engine](#the-ocr-engine).)
    - *Resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
-   - *Languages*: tick every language that appears. Tesseract reads only the languages you tick.
+   - *Languages*: tick every language that appears. Tesseract reads only the languages you tick. Until you choose, the English interface ticks English only (Arabic would slow English documents down and add misreads) and the Arabic interface ticks Arabic and English.
    - *Output*: leave page headers, footers and page numbers out of the Markdown. (Every Word table always includes a picture of the original table.)
-4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time.
+4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time. Reloading the page, or the browser losing touch with the app for a moment, doesn't stop the conversion: the page finds it again, and its results, for as long as they are kept (one hour).
 5. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table. When you converted several files separately, tap a file to open its results.
 
 The **ⓘ** button opens **About**: the version, **Software Update**, Automatic / Light / Dark appearance, and what this computer can run. Your choices (appearance, language, engine, resolution, languages, mode) are remembered in this browser.
