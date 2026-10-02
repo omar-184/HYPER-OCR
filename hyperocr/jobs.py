@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .engines.base import EngineError, Options
-from .pipeline import Cancelled, Output, convert
+from .pipeline import Cancelled, JobOutput, convert_job
 
 KEEP_SECONDS = 6 * 3600   # finished jobs are deleted after six hours
 
@@ -22,37 +22,63 @@ KEEP_SECONDS = 6 * 3600   # finished jobs are deleted after six hours
 @dataclass
 class Job:
     id: str
-    name: str
     folder: Path
-    pdf: Path
     options: Options
+    mode: str = "combine"          # combine | separate (several files only)
+    uploads: list = field(default_factory=list)
     state: str = "queued"          # queued | running | done | failed | cancelled
     stage: str = "queued"
     page: int = 0
     pages: int = 0
+    doc: int = 0
+    docs: int = 0
+    doc_name: str = ""
+    doc_page: int = 0
+    doc_pages: int = 0
+    preview: str = ""
     error: str = ""
     detail: str = ""
-    output: Output | None = None
+    output: JobOutput | None = None
     created: float = field(default_factory=time.time)
     finished: float = 0.0
     deleted: bool = False
     cancel: threading.Event = field(default_factory=threading.Event)
 
+    @property
+    def name(self) -> str:
+        return self.uploads[0].name if len(self.uploads) == 1 else "%d files" % len(self.uploads)
+
     def public(self) -> dict:
         data = {
-            "id": self.id, "name": self.name, "state": self.state, "stage": self.stage,
-            "page": self.page, "pages": self.pages, "error": self.error, "detail": self.detail,
+            "id": self.id, "name": self.name, "files": len(self.uploads), "mode": self.mode,
+            "state": self.state, "stage": self.stage, "page": self.page, "pages": self.pages,
+            "doc": self.doc, "docs": self.docs, "doc_name": self.doc_name,
+            "doc_page": self.doc_page, "doc_pages": self.doc_pages,
+            "preview": ("/api/jobs/%s/preview/%s" % (self.id, self.preview)) if self.preview else "",
+            "error": self.error, "detail": self.detail,
         }
         out = self.output
         if out is not None:
+            docs = []
+            for o in out.documents:
+                prefix = o.folder.name + "/"
+                docs.append({
+                    "name": o.name, "title": o.title, "folder": o.folder.name, "pages": o.pages, "words": o.words,
+                    "images": [prefix + p for p in o.images],
+                    "tables": [dict(t, file=prefix + t["file"]) for t in o.tables],
+                    "warnings": o.warnings, "pdf": prefix + o.pdf_file, "markdown_file": prefix + o.md_file,
+                    "markdown": o.markdown[:60000], "markdown_truncated": len(o.markdown) > 60000,
+                })
             data["result"] = {
-                "title": out.title, "engine": out.engine, "pages": out.pages, "words": out.words,
-                "images": out.images, "tables": out.tables, "warnings": out.warnings,
-                "pdf": out.pdf_file, "markdown_file": out.md_file, "zip": out.zip_path.name,
-                "markdown": out.markdown[:60000], "markdown_truncated": len(out.markdown) > 60000,
-                "seconds": out.seconds,
+                "engine": out.engine, "seconds": out.seconds, "zip": out.zip_path.name, "warnings": out.warnings,
+                "documents": docs,
+                "totals": {k: sum(len(d[k]) if isinstance(d[k], list) else d[k] for d in docs)
+                           for k in ("pages", "words", "images", "tables")},
             }
         return data
+
+    def output_folders(self) -> set[str]:
+        return {o.folder.name for o in self.output.documents} if self.output else set()
 
 
 class JobManager:
@@ -67,18 +93,36 @@ class JobManager:
         self.worker = threading.Thread(target=self._run, name="hyperocr-worker", daemon=True)
         self.worker.start()
 
-    def submit(self, name: str, data_path: Path, options: Options) -> Job:
+    def create(self, options: Options, mode: str = "combine") -> Job:
+        """A new job with its own folder; add uploads to it, then `start` it."""
         job_id = uuid.uuid4().hex[:16]
         folder = self.root / job_id
-        folder.mkdir(parents=True)
-        pdf = folder / "input.pdf"
-        shutil.move(str(data_path), pdf)
-        job = Job(job_id, name, folder, pdf, options)
+        (folder / "_uploads").mkdir(parents=True)
+        return Job(job_id, folder, options, mode if mode in ("combine", "separate") else "combine")
+
+    def start(self, job: Job) -> Job:
         with self.lock:
             self._sweep()
-            self.jobs[job_id] = job
-        self.queue.put(job_id)
+            self.jobs[job.id] = job
+        self.queue.put(job.id)
         return job
+
+    def discard(self, job: Job) -> None:
+        shutil.rmtree(job.folder, ignore_errors=True)
+
+    def submit(self, name: str, data_path: Path, options: Options) -> Job:
+        """One PDF already saved on disk (kept for scripts and tests)."""
+        from .inputs import Upload
+
+        job = self.create(options)
+        target = job.folder / "_uploads" / "001.pdf"
+        shutil.move(str(data_path), target)
+        job.uploads.append(Upload(name, target, "pdf"))
+        return self.start(job)
+
+    def busy(self) -> bool:
+        with self.lock:
+            return any(j.state in ("queued", "running") for j in self.jobs.values())
 
     def get(self, job_id: str) -> Job | None:
         with self.lock:
@@ -119,8 +163,8 @@ class JobManager:
                 continue
             job.state = "running"
             try:
-                job.output = convert(job.pdf, job.folder, job.options, lambda d, j=job: self._report(j, d),
-                                     job.cancel, original_name=job.name)
+                job.output = convert_job(job.uploads, job.mode, job.folder, job.options,
+                                         lambda d, j=job: self._report(j, d), job.cancel)
                 job.state, job.stage = "done", "done"
             except Cancelled:
                 job.state, job.stage = "cancelled", "cancelled"
@@ -134,10 +178,8 @@ class JobManager:
                 traceback.print_exc()
             finally:
                 job.finished = time.time()
-                try:
-                    job.pdf.unlink(missing_ok=True)   # the upload is no longer needed
-                except OSError:
-                    pass
+                for temp in ("_uploads", "_inputs"):   # the originals are no longer needed
+                    shutil.rmtree(job.folder / temp, ignore_errors=True)
                 self._discard_if_deleted(job)
 
     def _discard_if_deleted(self, job: Job) -> None:
@@ -149,10 +191,11 @@ class JobManager:
     @staticmethod
     def _report(job: Job, data: dict) -> None:
         job.stage = data.get("stage", job.stage)
-        if "page" in data:
-            job.page = data["page"]
-        if "pages" in data:
-            job.pages = data["pages"]
+        for key in ("page", "pages", "doc", "docs", "doc_page", "doc_pages", "preview"):
+            if key in data:
+                setattr(job, key, data[key])
+        if "name" in data:
+            job.doc_name = data["name"]
 
     def _sweep(self) -> None:
         now = time.time()

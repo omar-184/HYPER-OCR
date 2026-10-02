@@ -1,19 +1,23 @@
 # HYPER-OCR
 
-Turn a scanned PDF into:
+Turn scanned PDFs and photos of pages into:
 
 - a **searchable PDF**: the original pages, unchanged, with invisible text on top, so you can search, select and copy;
 - a **Markdown file**, made with [Microsoft MarkItDown](https://github.com/microsoft/markitdown), with the text, headings, figures, captions and tables in reading order;
 - an **`Images` folder** with every picture, chart and figure cut out of the pages;
 - a **`Tables` folder** with each table as its own Word file (`.docx`).
 
-Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface is in English and Arabic, with light and dark themes, and works on a phone browser too.
+Everything runs on your computer. There is no internet connection at run time, no cloud AI and no account. The interface follows Apple's design language (grouped lists, a large title that folds into a frosted bar, segmented controls and spring animations that respond to your hand). It is in English and Arabic, with light and dark appearance, and works in a phone browser too.
 
-![Results in English](docs/screenshot-results.png)
+![HYPER-OCR in light appearance, with four files ready](docs/screenshot-light.png)
+
+![Results in dark appearance, three files converted separately](docs/screenshot-dark.png)
+
+![On a phone, light and dark](docs/screenshot-phone.png)
 
 ## What you get
 
-Click **Download everything (ZIP)** and you get one ZIP file:
+Click **Download All (ZIP)** and you get one ZIP file:
 
 ```
 My scan_HYPER-OCR.zip
@@ -26,6 +30,8 @@ My scan_HYPER-OCR.zip
     └── Tables/
         └── Table-01_page-002.docx  one Word file per table
 ```
+
+Convert several files **each separately** and the ZIP holds one such folder per file, named `HYPER-OCR_3-documents.zip` for three files. **Combine into one** makes a single document from all of them, in the order you set, named after the first file (`IMG_001_combined`).
 
 The Markdown links to its pictures (`![Figure 1 …](Images/page-001_figure-01.png)`) and to each table's Word file, so the folder works as a whole when you unzip it.
 
@@ -62,16 +68,42 @@ Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `a
 
 ## Use
 
-1. **Choose a scanned PDF.** Drop it on the box or click to pick it.
-2. **OCR settings.**
-   - *Text recognition*: leave **Automatic**. It uses Unlimited-OCR when this computer can run it, otherwise Tesseract, and tells you which and why.
-   - *Reading resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
-   - *Languages in the document*: tick every language that appears. Tesseract needs this; Unlimited-OCR works out the language itself.
-   - Two options: put a picture of the original table in each Word file, and leave page headers, footers and page numbers out of the Markdown.
-3. **Convert.** A progress bar shows the page being read. You can cancel at any time.
-4. **Your files.** Download the ZIP, or just the searchable PDF or the Markdown. You can also preview the pictures, download single tables and read the Markdown in place.
+1. **Choose files.** Drop them anywhere on the window, or click the box to pick them. You can mix:
+   - scanned PDFs;
+   - photos and scans of pages: JPG, PNG, TIFF (multi-page too), WebP, BMP and **HEIC/HEIF from an iPhone**.
+
+   Photos are turned the right way up from their camera orientation, and their page size comes from the picture's resolution (or an A4-sized guess when it has none).
+2. **With two or more files, choose how to convert them.**
+   - **Combine into One**: one searchable PDF, Markdown and ZIP with every page, in the order of the list. Drag the ☰ handle to reorder, or focus it and press ↑ / ↓.
+   - **Each Separately**: every file gets its own searchable PDF, Markdown, `Images` and `Tables`, all in one ZIP.
+3. **Text recognition.**
+   - *Engine*: leave **Automatic**. It uses Unlimited-OCR when this computer can run it, otherwise Tesseract, and the line under the list says which and why.
+   - *Resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
+   - *Languages*: tick every language that appears. Tesseract needs this; Unlimited-OCR works out the language itself.
+   - *Output*: put a picture of the original table in each Word file, and leave page headers, footers and page numbers out of the Markdown.
+4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time.
+5. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table. When you converted several files separately, tap a file to open its results.
+
+The **ⓘ** button opens **About**: the version, **Software Update**, Automatic / Light / Dark appearance, and what this computer can run. Your choices (appearance, language, engine, resolution, languages, mode) are remembered in this browser.
 
 ![Results in Arabic, dark theme](docs/screenshot-arabic-dark.png)
+
+## Updating
+
+You download HYPER-OCR once. After that, updates replace only the app's own files: Python, the installed packages, Tesseract, the language files and the Unlimited-OCR model all stay, so nothing large is downloaded again.
+
+**In the app:** click **ⓘ**, then **Check** next to *Software Update*. If a newer version exists, the button becomes **Update**. Click it and HYPER-OCR downloads the new version from GitHub, installs it, restarts itself and reloads the page. (The button waits while a conversion is running.)
+
+**Without the app:** double-click **`update-windows.bat`**, or run `./update.sh` on macOS and Linux. Add `--check` to only check, or `--yes` to update without being asked.
+
+What an update does:
+
+1. Reads the version number in `hyperocr/__init__.py` on the repository's default branch, and compares it with yours.
+2. Downloads that branch as a ZIP and copies its files over the app. Files that were removed from the app are removed here too. `.venv`, `models`, `tessdata`, `tesseract` and `.backup` are never touched.
+3. Keeps the previous version in `.backup/<version>/`. If anything fails while files are being copied, that backup is put back.
+4. Reinstalls packages only when the new version's `requirements.txt` differs (and the GPU packages only if they were installed).
+
+Updating is the only thing in HYPER-OCR that goes online, and only when you click it. It runs as a separate program; the converter itself stays offline. The app is started by a small supervisor, so after an update it comes back on its own at the same address.
 
 ## The two OCR engines
 
@@ -111,14 +143,15 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 
 - The server listens on `127.0.0.1` only, so other computers on your network cannot reach it. It also refuses requests addressed to any other host name, and changes that don't carry the app's own header, so a website open in another tab cannot use it.
 - The page's Content Security Policy forbids any connection except to the app itself. No fonts, scripts or analytics load from anywhere else.
-- Uploads and results live in a temporary folder. They are deleted when you click **Convert another PDF**, six hours after a conversion, and when you close the app.
+- Uploads and results live in a temporary folder. They are deleted when you click **Convert Other Files**, six hours after a conversion, and when you close the app.
+- The only connection HYPER-OCR ever makes is **Software Update**, to `api.github.com` (and GitHub's download server), and only when you click it. It sends no information about you or your files.
 - No AI service is called. Unlimited-OCR is a model that runs on your own GPU.
-- While it runs, HYPER-OCR refuses every outgoing network connection except to this computer itself. Libraries that can report usage are switched off.
+- While it converts, HYPER-OCR refuses every outgoing network connection except to this computer itself. Libraries that can report usage are switched off.
 - MarkItDown is installed without its file-type guesser, `magika`. That guesser runs on ONNX Runtime, which contacts Microsoft's telemetry servers as soon as it is loaded. HYPER-OCR always gives MarkItDown HTML, so it doesn't need the guesser, and it blocks ONNX Runtime from loading at all.
 
 ## How it works
 
-1. Each page is rendered to an image (300 dpi by default).
+1. Pictures are first placed on PDF pages, one picture per page (JPEGs are kept byte for byte). Each page is then rendered to an image (300 dpi by default).
 2. **Unlimited-OCR** returns the page as tagged blocks: `<|det|>text [113, 567, 884, 698]<|/det|>…`. Each block has a type (title, text, table, image, caption, formula…) and a box on a 0–1000 grid. Tables come back as HTML. The model doesn't report individual lines, so HYPER-OCR finds each block's text lines in the image and spreads the block's words over them.
 3. **Tesseract** reads words with their exact positions. First, HYPER-OCR removes scanner specks with a median filter; specks otherwise turn into fake Arabic dots. Then:
    - it finds bordered tables from their ruling lines, merged cells included, and reads each cell separately;
@@ -154,21 +187,27 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 | A language is missing from the list | `python -m hyperocr.languages add <code>` (see [Languages](#languages)), then restart. |
 | The browser didn't open | Open <http://127.0.0.1:8765> yourself. If that port was taken, the black window shows the address it used. |
 | Out of memory on a huge PDF | Choose *Fast · 200 dpi*, or split the PDF. |
+| An iPhone photo shows a plain icon instead of a preview | Normal: most browsers can't show HEIC. HYPER-OCR still reads it. |
+| "Couldn't reach GitHub" when updating | Check the internet connection and try again. Nothing was changed. |
+| An update failed | The previous version was restored from `.backup/`. Try again, or run `update-windows.bat` / `./update.sh` to see the details. |
+| The page didn't come back after an update | Close the black window and start the app again. |
 
 ## For developers
 
 ```
 python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install --no-deps "markitdown>=0.1.2,<0.2"     # without magika / onnxruntime, as setup does
-.venv/bin/python -m pytest          # 39 tests; the CPU tests need Tesseract with eng + ara
+.venv/bin/python -m pytest          # 53 tests; the CPU tests need Tesseract with eng + ara
 .venv/bin/python tests/fixtures/make_fixtures.py   # rebuild the scanned test PDFs
 ```
 
 ```
 hyperocr/
-  __main__.py          start the local server and open the browser
+  __main__.py          supervisor: starts the local server, restarts it after an update
   server.py, jobs.py   JSON API on 127.0.0.1, one worker thread, clean-up
+  inputs.py            uploads: PDFs and pictures (HEIC, EXIF orientation), combined or one by one
   pipeline.py          one conversion, start to finish
+  update.py            the updater (the only code that goes online, run as its own process)
   document.py          the page model every engine fills in
   engines/
     unlimited.py       Unlimited-OCR (transformers on CUDA, or a local vLLM/SGLang server)
@@ -178,15 +217,21 @@ hyperocr/
     textlayer.py       invisible searchable text (glyphless font, bidi-aware)
     images.py, tables.py, tablegrid.py, markdown.py
   static/              the interface (no external resources)
-design-system/         the "Attendance Register" design system the interface is built on
+    style.css          Apple-style tokens and components, light and dark
+    motion.js          springs (damping + response), momentum projection, rubber-banding
+    app.js, i18n.js    the page, English and Arabic
+design-system/         the original "Attendance Register" design system (version 1.0's look)
 ```
 
-The interface uses the **Attendance Register** design system, taken from the *Attendance Register Filler* app. `design-system/tokens.json` holds its colours, type, spacing and radii, and `design-system/README.md` is its brand book. After editing the tokens, run `python design-system/build_css.py` to regenerate `hyperocr/static/tokens.css`. The same system is published in Claude Design.
+Since version 1.1 the interface uses Apple's system colours, type scale and components, in `hyperocr/static/style.css`. Every colour is a token with a light and a dark value, secondary text uses Apple's higher-contrast greys so it passes WCAG AA, and the page honours *Reduce Motion*, *Reduce Transparency* and *Increase Contrast*. Animations are springs that start from where things are now, so you can interrupt any of them: a dragged row, a sheet you pull down, the segmented control.
+
+`design-system/` keeps the green **Attendance Register** design system that version 1.0 used. It is still published in Claude Design; `python design-system/build_css.py` writes its CSS to `design-system/build/`.
 
 ## Credits and licences
 
 - [Unlimited-OCR](https://github.com/baidu/Unlimited-OCR) by Baidu (MIT)
 - [MarkItDown](https://github.com/microsoft/markitdown) by Microsoft (MIT)
 - [Tesseract OCR](https://github.com/tesseract-ocr/tesseract) (Apache 2.0); HYPER-OCR also bundles Tesseract's 572-byte glyphless font, `hyperocr/outputs/glyphless.ttf`, under the same licence
+- [pillow-heif](https://github.com/bigcat88/pillow_heif) for iPhone photos (source BSD-3-Clause; its ready-made wheels bundle libheif and libde265, LGPL-3.0, and x265, GPL-2.0, so the installed package as a whole is GPL-2.0)
 
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for every library and its licence. Note that PyMuPDF is AGPL-3.0, which matters if you ever distribute HYPER-OCR as a service.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for every library and its licence. Note that PyMuPDF is AGPL-3.0 and the pillow-heif wheels are GPL-2.0, which matters if you ever distribute HYPER-OCR or run it as a service for others.

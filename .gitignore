@@ -8,3 +8,4 @@ models/
 tessdata/
 tesseract/
 *.part
+design-system/build/

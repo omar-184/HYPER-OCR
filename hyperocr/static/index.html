@@ -4,134 +4,242 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" id="theme-color" content="#f3f4f6">
+<meta name="theme-color" id="theme-color" content="#f2f2f7">
 <title>HYPER-OCR</title>
-<link rel="stylesheet" href="/static/tokens.css">
-<link rel="stylesheet" href="/static/components.css">
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
 </head>
 <body>
-<header class="topbar">
-  <div class="brand">
-    <h1 data-i18n="title">HYPER-OCR</h1>
-    <p data-i18n="subtitle"></p>
-  </div>
-  <div class="top-actions">
-    <button type="button" class="icon-btn" id="theme-btn">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>
-      <span id="theme-label"></span>
-    </button>
-    <div class="lang" role="group" aria-label="Language">
-      <button type="button" data-lang="en">English</button>
-      <button type="button" data-lang="ar">العربية</button>
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><path d="M8 9h8M8 12h8M8 15h5"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 3H7.5A1.5 1.5 0 0 0 6 4.5v15A1.5 1.5 0 0 0 7.5 21h9a1.5 1.5 0 0 0 1.5-1.5V7z"/><path d="M14 3v4h4M9 12h6M9 15.5h6"/></symbol>
+  <symbol id="i-photo" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="m4 17 4.5-4.5 3 3L15 12l5 5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="m7 7 10 10M17 7 7 17"/></symbol>
+  <symbol id="i-handle" viewBox="0 0 24 24"><path d="M5 8h14M5 12h14M5 16h14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="i-updown" viewBox="0 0 24 24"><path d="m8 9.5 4-4 4 4M8 14.5l4 4 4-4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.8v.1"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.7 3.8 5.7 3.8 9s-1.2 6.3-3.8 9c-2.6-2.7-3.8-5.7-3.8-9S9.4 5.7 12 3z"/></symbol>
+  <symbol id="i-appearance" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17a8.5 8.5 0 0 0 0-17z" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10z"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></symbol>
+  <symbol id="i-viewfinder" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-table" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="M3.5 10h17M3.5 14.5h17M10 10v9"/></symbol>
+  <symbol id="i-text" viewBox="0 0 24 24"><path d="M5 6.5h14M5 10.5h14M5 14.5h9M5 18.5h6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4.5v11M7.5 11l4.5 4.5 4.5-4.5M5 19.5h14"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 8.5A7.5 7.5 0 0 0 5.6 7M5 15.5A7.5 7.5 0 0 0 18.4 17"/><path d="M19 4v4.5h-4.5M5 20v-4.5h4.5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></symbol>
+  <symbol id="i-stack" viewBox="0 0 24 24"><path d="M8 7.5V5.5A1.5 1.5 0 0 1 9.5 4h9A1.5 1.5 0 0 1 20 5.5v11a1.5 1.5 0 0 1-1.5 1.5H16"/><rect x="4" y="7.5" width="12" height="12.5" rx="1.5"/></symbol>
+</svg>
+
+<header class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <div class="nav-title" id="nav-title" aria-hidden="true">HYPER-OCR</div>
+    <div class="nav-trailing">
+      <button type="button" class="nav-btn" id="lang-btn"><svg><use href="#i-globe"/></svg><span id="lang-label"></span></button>
+      <button type="button" class="nav-btn icon" id="theme-btn"><svg><use id="theme-icon" href="#i-appearance"/></svg></button>
+      <button type="button" class="nav-btn icon" id="about-btn"><svg><use href="#i-info"/></svg></button>
     </div>
   </div>
 </header>
 
-<main>
-  <section class="card" id="step-file">
-    <h2><span class="num">1</span><span data-i18n="fileTitle"></span></h2>
-    <div id="file-list" class="src-list" hidden>
-      <div class="src-item">
-        <div class="src-head">
-          <span class="badge" id="file-badge">PDF</span>
-          <span class="file-name"><bdi id="file-name"></bdi></span>
-          <button type="button" class="icon-x" id="file-remove">×</button>
-        </div>
-        <span class="muted" id="file-meta" dir="auto"></span>
+<main id="main">
+  <div class="hero">
+    <img class="app-icon" src="/static/icon.svg" alt="" width="64" height="64">
+    <h1 class="large-title" id="large-title" data-i18n="title"></h1>
+    <p class="hero-sub" data-i18n="subtitle"></p>
+  </div>
+
+  <section class="section reveal" id="sec-files" aria-labelledby="h-files">
+    <h2 class="section-header" id="h-files" data-i18n="filesHeader"></h2>
+    <div class="group">
+      <label class="drop" id="drop">
+        <input type="file" id="file-input" multiple accept=".pdf,application/pdf,image/*,.heic,.heif,.tif,.tiff">
+        <span class="drop-icon"><svg><use href="#i-scan"/></svg></span>
+        <span class="drop-title" id="drop-title" data-i18n="dropTitle"></span>
+        <span class="drop-sub" id="drop-sub" data-i18n="dropSub"></span>
+      </label>
+      <ul class="file-list" id="file-list" hidden></ul>
+      <button type="button" class="row row-action" id="add-more" hidden>
+        <span class="tile tile-plain"><svg><use href="#i-plus"/></svg></span>
+        <span class="row-label" data-i18n="addMore"></span>
+      </button>
+    </div>
+    <p class="section-footer" id="files-footer" data-i18n="filesFooter"></p>
+    <div class="mode-wrap" id="mode-wrap" hidden>
+      <div class="segmented" id="mode" role="radiogroup">
+        <span class="segmented-thumb" aria-hidden="true"></span>
+        <button type="button" role="radio" data-value="combine"><span data-i18n="modeCombine"></span></button>
+        <button type="button" role="radio" data-value="separate"><span data-i18n="modeSeparate"></span></button>
+      </div>
+      <p class="section-footer" id="mode-footer"></p>
+    </div>
+    <p class="notice error" id="file-error" role="alert" hidden></p>
+  </section>
+
+  <section class="section reveal" id="sec-recog" aria-labelledby="h-recog">
+    <h2 class="section-header" id="h-recog" data-i18n="recogHeader"></h2>
+    <div class="group">
+      <label class="row">
+        <span class="tile tile-blue"><svg><use href="#i-cpu"/></svg></span>
+        <span class="row-label" data-i18n="setEngine"></span>
+        <span class="row-value select">
+          <select id="engine">
+            <option value="auto" data-i18n="engAuto"></option>
+            <option value="unlimited" data-i18n="engGpu"></option>
+            <option value="unlimited-server" data-i18n="engServer"></option>
+            <option value="tesseract" data-i18n="engCpu"></option>
+          </select>
+          <svg><use href="#i-updown"/></svg>
+        </span>
+      </label>
+      <label class="row">
+        <span class="tile tile-gray"><svg><use href="#i-viewfinder"/></svg></span>
+        <span class="row-label" data-i18n="setDpi"></span>
+        <span class="row-value select">
+          <select id="dpi">
+            <option value="300" data-i18n="dpi300"></option>
+            <option value="200" data-i18n="dpi200"></option>
+            <option value="400" data-i18n="dpi400"></option>
+          </select>
+          <svg><use href="#i-updown"/></svg>
+        </span>
+      </label>
+      <button type="button" class="row" id="langs-row">
+        <span class="tile tile-green"><svg><use href="#i-globe"/></svg></span>
+        <span class="row-label" data-i18n="setLangs"></span>
+        <span class="row-value"><span id="langs-value"></span><svg class="chev"><use href="#i-chev"/></svg></span>
+      </button>
+    </div>
+    <p class="section-footer status" id="engine-status" role="status"></p>
+  </section>
+
+  <section class="section reveal" id="sec-output" aria-labelledby="h-output">
+    <h2 class="section-header" id="h-output" data-i18n="outputHeader"></h2>
+    <div class="group">
+      <label class="row">
+        <span class="tile tile-indigo"><svg><use href="#i-table"/></svg></span>
+        <span class="row-label" data-i18n="optSnapshot"></span>
+        <input type="checkbox" class="switch" id="opt-snapshot" role="switch" checked>
+      </label>
+      <label class="row">
+        <span class="tile tile-orange"><svg><use href="#i-text"/></svg></span>
+        <span class="row-label" data-i18n="optFurniture"></span>
+        <input type="checkbox" class="switch" id="opt-furniture" role="switch" checked>
+      </label>
+    </div>
+    <p class="section-footer" data-i18n="outputFooter"></p>
+  </section>
+
+  <div class="start reveal" id="start-wrap">
+    <button type="button" class="btn btn-filled btn-large" id="start" disabled><span data-i18n="start"></span></button>
+    <p class="section-footer center" id="start-hint" data-i18n="startHint"></p>
+  </div>
+
+  <section class="section" id="sec-progress" aria-live="polite" hidden>
+    <div class="group progress-card">
+      <div class="scan" id="scan">
+        <img id="scan-img" alt="">
+        <span class="scan-placeholder"><svg><use href="#i-doc"/></svg></span>
+        <span class="scan-line" aria-hidden="true"></span>
+      </div>
+      <div class="progress-info">
+        <p class="progress-title" id="progress-title"></p>
+        <p class="progress-sub" id="progress-sub"></p>
+        <div class="bar" id="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="bar-fill"></span></div>
+        <div class="progress-meta"><span id="progress-percent"></span><span id="progress-eta"></span></div>
+        <div class="progress-actions"><button type="button" class="btn btn-tinted btn-small" id="cancel"><span data-i18n="cancel"></span></button></div>
       </div>
     </div>
-    <label class="drop" id="drop">
-      <input type="file" id="file-input" accept=".pdf,application/pdf">
-      <strong id="drop-title" data-i18n="filePick"></strong>
-      <span data-i18n="fileHint"></span>
-    </label>
-    <p id="file-error" class="msg error" hidden></p>
+    <p class="notice error" id="job-error" role="alert" hidden></p>
   </section>
 
-  <section class="card" id="step-settings">
-    <h2><span class="num">2</span><span data-i18n="setTitle"></span></h2>
-    <p id="engine-status" class="msg" role="status" hidden></p>
-    <div class="class-grid settings-grid">
-      <label><span data-i18n="setEngine"></span>
-        <select id="engine">
-          <option value="auto" data-i18n="engAuto"></option>
-          <option value="unlimited" data-i18n="engGpu"></option>
-          <option value="unlimited-server" data-i18n="engServer" hidden></option>
-          <option value="tesseract" data-i18n="engCpu"></option>
-        </select>
-      </label>
-      <label><span data-i18n="setDpi"></span>
-        <select id="dpi">
-          <option value="300" data-i18n="dpi300"></option>
-          <option value="200" data-i18n="dpi200"></option>
-          <option value="400" data-i18n="dpi400"></option>
-        </select>
-      </label>
+  <section class="section" id="sec-results" hidden>
+    <div class="group done-card">
+      <div class="done-head">
+        <svg class="done-check" viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"/><path d="m15 27 7.5 7.5L37.5 19"/></svg>
+        <div class="done-text">
+          <h2 class="done-title" data-i18n="doneTitle"></h2>
+          <p class="done-sub" id="done-sub"></p>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <a class="btn btn-filled btn-large" id="dl-zip" href="#" download><svg><use href="#i-down"/></svg><span data-i18n="dlZip"></span></a>
     </div>
-    <div class="lang-group" id="lang-group">
-      <h3 data-i18n="setLangs"></h3>
-      <p class="hint" data-i18n="setLangsHint"></p>
-      <div id="lang-list" class="lang-list"></div>
-    </div>
-    <label class="check"><input type="checkbox" id="opt-snapshot" checked><span data-i18n="optSnapshot"></span></label>
-    <label class="check"><input type="checkbox" id="opt-furniture" checked><span data-i18n="optFurniture"></span></label>
-    <div class="row">
-      <button type="button" class="btn primary" id="start" data-i18n="start" disabled></button>
-    </div>
-    <p id="start-hint" class="hint" data-i18n="startHint"></p>
-  </section>
-
-  <section class="card" id="step-progress" hidden>
-    <h2><span class="num">3</span><span data-i18n="progTitle"></span></h2>
-    <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span id="progress-bar"></span></div>
-    <div class="progress-label"><span><strong id="progress-stage"></strong><span id="progress-engine"></span></span><span id="progress-count"></span></div>
-    <div class="row">
-      <button type="button" class="btn secondary" id="cancel" data-i18n="cancel"></button>
-    </div>
-    <p id="job-error" class="msg error" role="alert" hidden></p>
-  </section>
-
-  <section class="card" id="step-results" hidden>
-    <h2><span class="num">4</span><span data-i18n="resTitle"></span></h2>
-    <ul class="stats" id="stats"></ul>
     <div id="warnings"></div>
-    <div class="row">
-      <a class="btn primary" id="dl-zip" href="#" download data-i18n="dlZip"></a>
-      <a class="btn secondary" id="dl-pdf" href="#" download data-i18n="dlPdf"></a>
-      <a class="btn secondary" id="dl-md" href="#" download data-i18n="dlMd"></a>
-      <button type="button" class="btn link" id="again" data-i18n="again"></button>
-    </div>
-    <p class="hint" data-i18n="zipHint"></p>
-
-    <div class="result-part" id="images-part">
-      <h3><span data-i18n="resImages"></span> <span class="muted mono" dir="ltr">Images/</span></h3>
-      <div class="thumbs" id="thumbs"></div>
-      <p class="hint" id="no-images" data-i18n="noImages" hidden></p>
-    </div>
-
-    <div class="result-part" id="tables-part">
-      <h3><span data-i18n="resTables"></span> <span class="muted mono" dir="ltr">Tables/</span></h3>
-      <div class="src-list" id="table-list"></div>
-      <p class="hint" id="no-tables" data-i18n="noTables" hidden></p>
-    </div>
-
-    <div class="result-part">
-      <h3><span data-i18n="resMarkdown"></span> <span class="muted mono" id="md-name" dir="ltr"></span></h3>
-      <pre class="text-preview" id="md-preview"></pre>
-      <p class="hint" id="md-truncated" data-i18n="mdTruncated" hidden></p>
-    </div>
+    <div id="documents"></div>
+    <div class="start"><button type="button" class="btn btn-plain" id="again"><span data-i18n="again"></span></button></div>
   </section>
 </main>
 
-<footer class="foot" data-i18n="footer"></footer>
+<footer class="foot"><svg><use href="#i-lock"/></svg><span data-i18n="footer"></span></footer>
 
 <div class="mobile-bar" id="mobile-bar" hidden>
-  <a class="btn primary" id="m-zip" href="#" download data-i18n="dlZipShort"></a>
-  <button type="button" class="btn secondary" id="m-again" data-i18n="againShort"></button>
+  <a class="btn btn-filled" id="m-zip" href="#" download><svg><use href="#i-down"/></svg><span data-i18n="dlZipShort"></span></a>
 </div>
 
+<div class="sheet-layer" id="sheet-layer" hidden>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="sheet" id="about-sheet" role="dialog" aria-modal="true" aria-labelledby="about-title" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-bar">
+      <span></span>
+      <h2 id="about-title" data-i18n="aboutTitle"></h2>
+      <button type="button" class="btn btn-plain sheet-done" data-close><span data-i18n="done"></span></button>
+    </div>
+    <div class="sheet-body">
+      <div class="about-hero">
+        <img class="app-icon" src="/static/icon.svg" alt="" width="72" height="72">
+        <p class="about-name">HYPER-OCR</p>
+        <p class="about-version" id="about-version"></p>
+      </div>
+      <div class="group">
+        <div class="row update-row">
+          <span class="tile tile-blue"><svg><use href="#i-refresh"/></svg></span>
+          <span class="row-label">
+            <span id="update-title" data-i18n="updTitle"></span>
+            <small id="update-status"></small>
+          </span>
+          <button type="button" class="btn btn-tinted btn-small" id="update-btn"><span id="update-btn-label"></span></button>
+        </div>
+        <div class="update-steps" id="update-steps" hidden></div>
+      </div>
+      <p class="section-footer" data-i18n="updFooter"></p>
+
+      <h3 class="section-header" data-i18n="appearanceHeader"></h3>
+      <div class="segmented" id="appearance" role="radiogroup">
+        <span class="segmented-thumb" aria-hidden="true"></span>
+        <button type="button" role="radio" data-value="auto"><span data-i18n="theme_auto"></span></button>
+        <button type="button" role="radio" data-value="light"><span data-i18n="theme_light"></span></button>
+        <button type="button" role="radio" data-value="dark"><span data-i18n="theme_dark"></span></button>
+      </div>
+
+      <h3 class="section-header" data-i18n="computerHeader"></h3>
+      <div class="group" id="about-engines"></div>
+      <p class="section-footer" data-i18n="privacyFooter"></p>
+    </div>
+  </div>
+
+  <div class="sheet" id="langs-sheet" role="dialog" aria-modal="true" aria-labelledby="langs-title" hidden>
+    <div class="grabber" aria-hidden="true"></div>
+    <div class="sheet-bar">
+      <span></span>
+      <h2 id="langs-title" data-i18n="setLangs"></h2>
+      <button type="button" class="btn btn-plain sheet-done" data-close><span data-i18n="done"></span></button>
+    </div>
+    <div class="sheet-body">
+      <div class="group" id="langs-list" role="group"></div>
+      <p class="section-footer" data-i18n="setLangsHint"></p>
+    </div>
+  </div>
+</div>
+
+<script src="/static/motion.js"></script>
 <script src="/static/i18n.js"></script>
 <script src="/static/app.js"></script>
 </body>

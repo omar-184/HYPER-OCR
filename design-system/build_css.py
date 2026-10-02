@@ -1,4 +1,7 @@
-"""Write hyperocr/static/tokens.css and components.css from this design system.
+"""Write build/tokens.css and build/components.css from this design system.
+
+Since version 1.1 the app itself uses the native Apple style in
+hyperocr/static/style.css; this system is kept as the original brand reference.
 
     python design-system/build_css.py
 """
@@ -10,7 +13,7 @@ import shutil
 from pathlib import Path
 
 HERE = Path(__file__).parent
-STATIC = HERE.parent / "hyperocr" / "static"
+STATIC = HERE / "build"
 
 
 def block(tokens: dict, theme: str) -> list[str]:

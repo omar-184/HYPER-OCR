@@ -34,18 +34,33 @@ class Cancelled(Exception):
 
 @dataclass
 class Output:
+    """The results for one document."""
+
     folder: Path
     zip_path: Path
     pdf_file: str
     md_file: str
     title: str
     engine: str
+    name: str = ""
     pages: int = 0
     words: int = 0
     images: list[str] = field(default_factory=list)
     tables: list[dict] = field(default_factory=list)
     warnings: list[dict] = field(default_factory=list)
     markdown: str = ""
+    seconds: float = 0.0
+
+
+@dataclass
+class JobOutput:
+    """Everything one conversion produced: one or more documents in one ZIP."""
+
+    root: Path
+    zip_path: Path
+    engine: str
+    documents: list[Output]
+    warnings: list[dict] = field(default_factory=list)
     seconds: float = 0.0
 
 
@@ -58,35 +73,93 @@ def safe_stem(name: str) -> str:
 
 def convert(pdf_path: Path, work: Path, options: Options, report: Report,
             cancel: threading.Event | None = None, original_name: str | None = None) -> Output:
+    """Convert one PDF and zip its results (the original single-file entry point)."""
     started = time.time()
     cancel = cancel or threading.Event()
     name = original_name or pdf_path.name
-    stem = safe_stem(name)
     report({"stage": "opening"})
+    engine, passed_over = engines.choose(options)
+    engine.prepare(lambda stage: report({"stage": stage}))
+    out = _convert_document(pdf_path, safe_stem(name), name, work, options, engine, report, cancel)
+    if passed_over is not None:
+        out.warnings.insert(0, _cpu_warning(passed_over))
+    report({"stage": "packing"})
+    _zip([out.folder], out.zip_path)
+    out.seconds = round(time.time() - started, 1)
+    report({"stage": "done"})
+    return out
 
+
+def convert_job(uploads: list, mode: str, work: Path, options: Options, report: Report,
+                cancel: threading.Event | None = None) -> JobOutput:
+    """Convert uploads (PDFs and pictures), combined into one document or one each."""
+    from . import inputs
+
+    started = time.time()
+    cancel = cancel or threading.Event()
+    report({"stage": "opening"})
+    docs = inputs.build(uploads, mode, work / "_inputs")
+    counts = [inputs.page_count(d) for d in docs]
+    total = sum(counts)
+    engine, passed_over = engines.choose(options)
+    engine.prepare(lambda stage: report({"stage": stage}))
+    previews = work / "_previews"
+    previews.mkdir(parents=True, exist_ok=True)
+    outputs: list[Output] = []
+    done_pages = 0
+    for d, doc in enumerate(docs):
+        source = doc.name if len(uploads) > 1 and mode == "combine" else uploads[d].name
+
+        def doc_report(data: dict, d=d, doc=doc, before=done_pages) -> None:
+            if data.get("stage") == "reading":
+                data = dict(data, doc=d + 1, docs=len(docs), name=doc.name, doc_page=data["page"],
+                            doc_pages=data["pages"], page=before + data["page"], pages=total)
+            report(data)
+
+        outputs.append(_convert_document(doc.pdf, doc.name, source, work, options, engine, doc_report, cancel,
+                                         previews=previews, preview_prefix="%03d" % (d + 1)))
+        done_pages += counts[d]
+    warnings = [_cpu_warning(passed_over)] if passed_over is not None else []
+    if len(outputs) == 1:
+        zip_path = work / (outputs[0].folder.name + "_HYPER-OCR.zip")
+    else:
+        zip_path = work / ("HYPER-OCR_%d-documents.zip" % len(outputs))
+    report({"stage": "packing"})
+    _zip([o.folder for o in outputs], zip_path)
+    for o in outputs:
+        o.zip_path = zip_path
+    report({"stage": "done"})
+    return JobOutput(work, zip_path, engine.id, outputs, warnings, round(time.time() - started, 1))
+
+
+def _cpu_warning(state) -> dict:
+    return {"key": "usedCpu", "reason": state.reason, "detail": state.detail}
+
+
+def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options: Options, engine,
+                      report: Report, cancel: threading.Event, previews: Path | None = None,
+                      preview_prefix: str = "") -> Output:
+    """OCR one PDF into its own folder: searchable PDF, Markdown, Images/, Tables/."""
+    started = time.time()
     try:
         doc = pymupdf.open(pdf_path)
     except Exception as exc:
-        raise EngineError("notPdf", str(exc)) from exc
+        raise EngineError("notPdf", name) from exc
     if doc.needs_pass and not doc.authenticate(""):
-        raise EngineError("passwordProtected")
+        raise EngineError("passwordProtected", name)
     if not doc.is_pdf:
-        raise EngineError("notPdf")
+        raise EngineError("notPdf", name)
     if doc.page_count == 0:
-        raise EngineError("emptyPdf")
+        raise EngineError("emptyPdf", name)
 
-    engine, passed_over = engines.choose(options)
     out = Output(
         folder=work / stem, zip_path=work / (stem + "_HYPER-OCR.zip"),
-        pdf_file=stem + "_searchable.pdf", md_file=stem + ".md", title=stem, engine=engine.id,
+        pdf_file=stem + "_searchable.pdf", md_file=stem + ".md", title=stem, engine=engine.id, name=stem,
     )
-    if passed_over is not None:
-        out.warnings.append({"key": "usedCpu", "reason": passed_over.reason, "detail": passed_over.detail})
     out.folder.mkdir(parents=True, exist_ok=True)
     (out.folder / "Images").mkdir(exist_ok=True)
     (out.folder / "Tables").mkdir(exist_ok=True)
 
-    engine.prepare(lambda stage: report({"stage": stage}))
     writer = TextLayerWriter(doc)
     pages: list[PageResult] = []
     had_text: list[int] = []
@@ -98,11 +171,14 @@ def convert(pdf_path: Path, work: Path, options: Options, report: Report,
         if cancel.is_set():
             raise Cancelled()
         page = doc[i]
-        report({"stage": "reading", "page": i + 1, "pages": doc.page_count})
         dpi = _page_dpi(page, options.dpi)
         pix = page.get_pixmap(dpi=dpi, colorspace=pymupdf.csRGB, alpha=False)
         image = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, 3).copy()
         del pix
+        update = {"stage": "reading", "page": i + 1, "pages": doc.page_count}
+        if previews is not None:
+            update["preview"] = _save_preview(image, previews, "%s-%04d.jpg" % (preview_prefix, i + 1))
+        report(update)
         result = engine.process(image, i, dpi, options)
         if cancel.is_set():
             raise Cancelled()
@@ -174,12 +250,18 @@ def convert(pdf_path: Path, work: Path, options: Options, report: Report,
     report({"stage": "writing-markdown"})
     out.markdown = to_markdown(pages, out.title, options.skip_furniture, options.ui_lang)
     (out.folder / out.md_file).write_text(out.markdown, encoding="utf-8")
-
-    report({"stage": "packing"})
-    _zip(out.folder, out.zip_path)
     out.seconds = round(time.time() - started, 1)
-    report({"stage": "done"})
     return out
+
+
+def _save_preview(image: np.ndarray, folder: Path, name: str) -> str:
+    """A small picture of the page being read, for the interface."""
+    from PIL import Image
+
+    im = Image.fromarray(image)
+    im.thumbnail((560, 800))
+    im.save(folder / name, "JPEG", quality=72)
+    return name
 
 
 def _page_dpi(page: pymupdf.Page, dpi: int) -> int:
@@ -235,10 +317,11 @@ def _bookmarks(doc: pymupdf.Document, pages: list[PageResult]) -> None:
         pass  # bookmarks are a convenience; never fail a conversion over them
 
 
-def _zip(folder: Path, target: Path) -> None:
+def _zip(folders: list[Path], target: Path) -> None:
     with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
-        z.writestr(folder.name + "/Images/", "")
-        z.writestr(folder.name + "/Tables/", "")
-        for f in sorted(folder.rglob("*")):
-            if f.is_file():
-                z.write(f, Path(folder.name) / f.relative_to(folder))
+        for folder in folders:
+            z.writestr(folder.name + "/Images/", "")
+            z.writestr(folder.name + "/Tables/", "")
+            for f in sorted(folder.rglob("*")):
+                if f.is_file():
+                    z.write(f, Path(folder.name) / f.relative_to(folder))

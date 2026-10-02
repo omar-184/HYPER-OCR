@@ -36,10 +36,10 @@ def test_writes_need_the_app_header(client):
     assert client.post("/api/jobs", data=data).status_code == 403
 
 
-def test_rejects_non_pdf(client):
+def test_rejects_files_that_are_neither_pdf_nor_picture(client):
     data = {"file": (io.BytesIO(b"hello"), "notes.pdf")}
     r = client.post("/api/jobs", data=data, headers=HEADERS)
-    assert r.status_code == 400 and r.get_json()["error"] == "notPdf"
+    assert r.status_code == 400 and r.get_json() == {"error": "notSupported", "detail": "notes.pdf"}
 
 
 def test_unknown_job_and_bad_ids(client):
@@ -61,12 +61,36 @@ def test_full_job(client):
         time.sleep(0.2)
     assert job["state"] == "done", job
     res = job["result"]
-    assert res["pages"] == 2 and res["pdf"] == "My scan_searchable.pdf" and len(res["images"]) == 2
+    doc = res["documents"][0]
+    assert res["totals"]["pages"] == 2 and res["zip"] == "My scan_HYPER-OCR.zip"
+    assert doc["pdf"] == "My scan/My scan_searchable.pdf" and len(doc["images"]) == 2
     z = client.get("/api/jobs/%s/download" % job_id)
     assert z.status_code == 200 and z.data[:2] == b"PK"
-    img = client.get("/api/jobs/%s/files/%s" % (job_id, res["images"][0]))
+    img = client.get("/api/jobs/%s/files/%s" % (job_id, doc["images"][0]))
     assert img.status_code == 200 and img.data[:4] == b"\x89PNG"
+    preview = client.get(job["preview"]) if job["preview"] else None
+    assert preview is not None and preview.status_code == 200 and preview.data[:2] == b"\xff\xd8"
     assert client.get("/api/jobs/%s/files/../input.pdf" % job_id).status_code == 404
+    assert client.get("/api/jobs/%s/files/_previews/001-0001.jpg" % job_id).status_code == 404
     assert client.get("/api/jobs/%s/files/%%2e%%2e/%%2e%%2e/x" % job_id).status_code == 404
     assert client.delete("/api/jobs/" + job_id, headers=HEADERS).status_code == 200
     assert client.get("/api/jobs/" + job_id).status_code == 404
+
+
+@needs_tesseract
+def test_several_pictures_each_on_its_own(client, tmp_path):
+    from test_inputs import page_photo
+
+    files = [(io.BytesIO(page_photo(0, "JPEG")), "IMG_1.jpg"), (io.BytesIO(page_photo(1, "PNG")), "IMG_2.png")]
+    data = {"file": files, "options": '{"engine": "tesseract", "languages": ["eng"], "mode": "separate"}'}
+    r = client.post("/api/jobs", data=data, headers=HEADERS)
+    assert r.status_code == 201, r.get_json()
+    job_id = r.get_json()["id"]
+    for _ in range(600):
+        job = client.get("/api/jobs/" + job_id).get_json()
+        if job["state"] in ("done", "failed"):
+            break
+        time.sleep(0.2)
+    assert job["state"] == "done", job
+    assert [d["folder"] for d in job["result"]["documents"]] == ["IMG_1", "IMG_2"]
+    assert job["result"]["zip"] == "HYPER-OCR_2-documents.zip"

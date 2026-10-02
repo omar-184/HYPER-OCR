@@ -15,4 +15,5 @@ HYPER-OCR uses these projects. Each keeps its own licence.
 | [pytesseract](https://github.com/madmaze/pytesseract) | calling Tesseract | Apache 2.0 |
 | [Flask](https://flask.palletsprojects.com) / [Waitress](https://github.com/Pylons/waitress) | the local web server | BSD-3-Clause / ZPL 2.1 |
 | [NumPy](https://numpy.org), [Pillow](https://python-pillow.org) | image handling | BSD / MIT-CMU |
+| [pillow-heif](https://github.com/bigcat88/pillow_heif) | reading iPhone photos (HEIC/HEIF) | BSD-3-Clause source; binary wheels GPL-2.0 because they bundle [libheif](https://github.com/strukturag/libheif) and [libde265](https://github.com/strukturag/libde265) (LGPL-3.0) and [x265](https://bitbucket.org/multicoreware/x265_git) (GPL-2.0) |
 | [transformers](https://github.com/huggingface/transformers), [PyTorch](https://pytorch.org) (GPU option) | running Unlimited-OCR | Apache 2.0 / BSD-3-Clause |

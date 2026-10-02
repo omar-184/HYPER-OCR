@@ -4,17 +4,20 @@ from __future__ import annotations
 
 import json
 import re
-import tempfile
+import subprocess
+import sys
 import threading
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
-from . import __version__, engines
+from . import __version__, engines, inputs
 from .engines.base import Options
 from .jobs import JobManager
 
 STATIC = Path(__file__).with_name("static")
+APP_ROOT = Path(__file__).resolve().parents[1]
+MAX_FILES = 500
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; "
        "connect-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -79,26 +82,27 @@ def create_app(jobs: JobManager | None = None) -> Flask:
 
     @app.post("/api/jobs")
     def api_create():
-        upload = request.files.get("file")
-        if upload is None or not upload.filename:
+        uploads = [f for f in request.files.getlist("file") if f and f.filename]
+        if not uploads:
             return jsonify(error="noFile"), 400
+        if len(uploads) > MAX_FILES:
+            return jsonify(error="tooManyFiles", detail=str(MAX_FILES)), 400
         try:
             raw = json.loads(request.form.get("options") or "{}")
         except ValueError:
             raw = {}
         info = system_info()
-        options = _options(raw, info)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf", dir=manager.root)
-        with tmp:
-            upload.save(tmp)
-        path = Path(tmp.name)
-        with path.open("rb") as f:
-            head = f.read(1024)
-        if b"%PDF-" not in head:
-            path.unlink(missing_ok=True)
-            return jsonify(error="notPdf"), 400
-        name = Path(upload.filename.replace("\\", "/")).name or "document.pdf"
-        job = manager.submit(name, path, options)
+        job = manager.create(_options(raw, info), raw.get("mode", "combine"))
+        for i, upload in enumerate(uploads):
+            name = Path(upload.filename.replace("\\", "/")).name or "file-%d" % (i + 1)
+            target = job.folder / "_uploads" / ("%03d%s" % (i + 1, Path(name).suffix.lower()[:8]))
+            upload.save(target)
+            kind = inputs.detect(target)
+            if kind is None:
+                manager.discard(job)
+                return jsonify(error="notSupported", detail=name), 400
+            job.uploads.append(inputs.Upload(name, target, kind))
+        manager.start(job)
         return jsonify(job.public()), 201
 
     @app.get("/api/jobs/<job_id>")
@@ -125,13 +129,82 @@ def create_app(jobs: JobManager | None = None) -> Flask:
     @app.get("/api/jobs/<job_id>/files/<path:rel>")
     def api_file(job_id: str, rel: str):
         job = _job(manager, job_id)
-        if job.output is None:
+        if job.output is None or rel.split("/", 1)[0] not in job.output_folders():
             abort(404)
-        base = job.output.folder.resolve()
+        base = job.folder.resolve()
         target = (base / rel).resolve()
         if base not in target.parents or not target.is_file():
             abort(404)
         return send_file(target, as_attachment=request.args.get("download") == "1", download_name=target.name)
+
+    @app.get("/api/jobs/<job_id>/preview/<name>")
+    def api_preview(job_id: str, name: str):
+        job = _job(manager, job_id)
+        if not re.fullmatch(r"\d{3}-\d{4}\.jpg", name):
+            abort(404)
+        path = job.folder / "_previews" / name
+        if not path.is_file():
+            abort(404)
+        return send_file(path, mimetype="image/jpeg")
+
+    # ------------------------------------------------------------ updates
+    # The update runs as its own process (python -m hyperocr.update): this server
+    # stays offline. Nothing is checked unless the person asks.
+    update_state: dict = {"state": "idle", "events": []}
+    update_lock = threading.Lock()
+
+    def updater(*args: str) -> list[str]:
+        return [sys.executable, "-m", "hyperocr.update", "--json", *args]
+
+    @app.post("/api/update/check")
+    def api_update_check():
+        try:
+            done = subprocess.run(updater("--check"), cwd=str(APP_ROOT), capture_output=True, text=True, timeout=60)
+            lines = [l for l in done.stdout.splitlines() if l.strip().startswith("{")]
+            data = json.loads(lines[-1]) if lines else {}
+        except (subprocess.TimeoutExpired, ValueError, OSError) as exc:
+            return jsonify(error="updateNetwork", detail=str(exc)), 502
+        if done.returncode != 0 or "available" not in data:
+            return jsonify(error="updateNetwork", detail=data.get("error", done.stderr[-300:])), 502
+        return jsonify(data)
+
+    @app.post("/api/update/apply")
+    def api_update_apply():
+        with update_lock:
+            if update_state["state"] == "running":
+                return jsonify(update_state)
+            if manager.busy():
+                return jsonify(error="updateBusy"), 409
+            update_state.update(state="running", events=[])
+        threading.Thread(target=run_update, daemon=True).start()
+        return jsonify(update_state)
+
+    def run_update() -> None:
+        try:
+            proc = subprocess.Popen(updater("--yes"), cwd=str(APP_ROOT), stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True)
+            for line in proc.stdout:
+                try:
+                    update_state["events"].append(json.loads(line))
+                except ValueError:
+                    continue
+            proc.wait()
+        except OSError as exc:
+            update_state["events"].append({"step": "failed", "error": str(exc)})
+        last = update_state["events"][-1] if update_state["events"] else {"step": "failed", "error": "no output"}
+        if last.get("step") == "done" and last.get("updated"):
+            restart = app.extensions.get("hyperocr.restart")
+            update_state["state"] = "restarting" if restart else "done"
+            if restart:
+                restart()
+        elif last.get("step") == "upToDate":
+            update_state["state"] = "done"
+        else:
+            update_state["state"] = "failed"
+
+    @app.get("/api/update/status")
+    def api_update_status():
+        return jsonify(update_state)
 
     @app.errorhandler(413)
     def too_big(_):
