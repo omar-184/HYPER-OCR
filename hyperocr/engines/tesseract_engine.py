@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -63,6 +64,33 @@ SURE = 90.0                # a reading this confident is not re-read at another 
 DESKEW_FROM = 0.8
 OSD_DPI = 150              # page orientation is read at this resolution: at 100 dpi it guessed wrong
 OSD_MIN_CONF = 3.0         # turned pages measured 6.2-13.8; wrong guesses at 100 dpi were below 0.2
+
+
+# The Tesseract release the tests pass on; Windows setup installs exactly this build.
+TESTED_VERSION = "5.4.0"
+WINGET_VERSION = "5.4.0.20240606"
+
+
+def tesseract_version(path: str | None = None) -> str:
+    """The version of the Tesseract that HYPER-OCR will use, e.g. "5.4.0" ("" if none)."""
+    path = path or find_tesseract()
+    if not path:
+        return ""
+    try:
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    m = re.search(r"tesseract v?(\d+\.\d+\.\d+)", out)
+    return m.group(1) if m else ""
+
+
+def version_note() -> str:
+    """For setup: a sentence when the installed Tesseract isn't the tested one, else ''."""
+    found = tesseract_version()
+    if found and found != TESTED_VERSION:
+        return ("Tesseract %s found. HYPER-OCR is tested with Tesseract %s: other versions read some words and "
+                "numbers differently." % (found, TESTED_VERSION))
+    return ""
 
 
 def find_tesseract() -> str | None:
@@ -145,8 +173,8 @@ class TesseractEngine(Engine):
             gray = cv2.resize(gray, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
         try:
             osd = pt.image_to_osd(gray, config="--psm 0 --dpi %d" % int(dpi * scale), output_type=pt.Output.DICT)
-        except Exception:   # too few characters, or no osd data: leave the page as it is
-            return 0
+        except Exception:   # too few characters, no osd data, or a Linux build of 5.4 that stops on a
+            return 0        # floating-point check here (Windows builds don't): leave the page as it is
         turn = int(osd.get("rotate", 0)) % 360
         if turn not in (90, 180, 270) or float(osd.get("orientation_conf", 0)) < OSD_MIN_CONF:
             return 0
@@ -223,7 +251,7 @@ class TesseractEngine(Engine):
 
         keyed = _paragraph_blocks(free, h, ink)
         text_blocks = [b for k, b in keyed if k[0] < ORPHAN_BLOCK]
-        placed: list[Block] = [b for k, b in keyed if k[0] >= ORPHAN_BLOCK]
+        placed: list[Block] = [b for k, b in keyed if k[0] >= ORPHAN_BLOCK and not _continues(b, text_blocks)]
         cell_lines: list[Line] = []
         for i, g in enumerate(grids):
             self._read_cells(clean, g, table_words[i], langs, dpi)
@@ -275,6 +303,7 @@ class TesseractEngine(Engine):
         for tw in base:
             line_rtl.setdefault(tw.key, []).append(tw.text)
         line_rtl = {k: mostly_rtl(" ".join(v)) for k, v in line_rtl.items()}
+        was_rtl = {id(tw): is_rtl(tw.text) for tw in base}
 
         def score(text: str, conf: float, rtl_line: bool) -> float:
             return conf + (SCRIPT_BONUS if is_rtl(text) == rtl_line else 0.0)
@@ -287,12 +316,14 @@ class TesseractEngine(Engine):
                 if s > best:
                     best, tw.text, tw.conf = s, text, conf
 
+        def speck(tw: TWord) -> bool:
+            """A lone, unsure Latin letter inside an Arabic line: a dot or a fragment, not a word."""
+            return (len(langs) > 1 and line_rtl[tw.key] and len(tw.text) == 1
+                    and tw.text.isascii() and tw.text.isalpha() and tw.conf < 75)
+
         if len(langs) > 1:
-            # A lone, unsure Latin letter inside an Arabic line is a speck, not a word.
-            base = [tw for tw in base if not (line_rtl[tw.key] and len(tw.text) == 1
-                                              and tw.text.isascii() and tw.text.isalpha() and tw.conf < 75)]
             # Only words with letters are re-read: models of other scripts misread digits.
-            suspicious = [tw for tw in base if any(ch.isalpha() for ch in tw.text)
+            suspicious = [tw for tw in base if any(ch.isalpha() for ch in tw.text) and not speck(tw)
                           and (tw.conf < 80 or is_rtl(tw.text) != line_rtl[tw.key])]
             singles = [self._tsv(image, lang, dpi) for lang in langs] if suspicious else []
             for tw in suspicious:
@@ -306,16 +337,39 @@ class TesseractEngine(Engine):
         for tw in base:
             top, bottom = bands.get(tw.key, (tw.box[1], tw.box[3]))
             bands[tw.key] = (min(top, tw.box[1]), max(bottom, tw.box[3]))
-        unsure = sorted((tw for tw in base if tw.conf < 80 and any(ch.isalpha() for ch in tw.text)),
-                        key=lambda tw: tw.conf)[:REREAD_LIMIT]
-        for tw in unsure:
+        def unsure(tw: TWord) -> bool:
+            return tw.conf < 80 and any(ch.isalpha() for ch in tw.text)
+
+        # A word Tesseract cut in two ("الطبية" read as "A" + "Sal]" by 5.4.0) can't be recovered
+        # piece by piece: neighbouring unsure pieces of an Arabic line (specks included, as they may
+        # be a piece) are read again as one span, and replaced by that reading when it is a single,
+        # better word. Specks left over afterwards are dropped.
+        dropped: set[int] = set()
+        joined: set[tuple] = set()
+        for run in _unsure_runs(base, lambda tw: unsure(tw) and line_rtl[tw.key]):
+            box = union([tw.box for tw in run])
+            rtl_line = line_rtl[run[0].key]
+            worst = max(score(tw.text, tw.conf, rtl_line) for tw in run)
+            best = max(self._reread_word(image, box, bands[run[0].key], langs, dpi),
+                       key=lambda c: score(c[0], c[1], rtl_line), default=None)
+            if best and score(best[0], best[1], rtl_line) > worst and best[1] >= 50:
+                keep = run[0]
+                keep.box, keep.text, keep.conf = box, best[0], best[1]
+                dropped.update(id(tw) for tw in run[1:])
+                joined.add(keep.key)
+        base = [tw for tw in base if id(tw) not in dropped and not speck(tw)]
+        for tw in sorted((tw for tw in base if unsure(tw)), key=lambda tw: tw.conf)[:REREAD_LIMIT]:
             vote(tw, self._reread_word(image, tw.box, bands[tw.key], langs, dpi))
-        return base
+        # Tesseract orders a line by the scripts it read. Where pieces were joined or a word changed
+        # script, its order no longer holds ("Sal] تقرير المتابعة" put the title's last word first).
+        redo = joined | {tw.key for tw in base if is_rtl(tw.text) != was_rtl.get(id(tw), is_rtl(tw.text))}
+        return _reorder_lines(base, line_rtl, redo)
 
     def _reread_word(self, image: np.ndarray, box: Box, band: tuple[float, float], langs: list[str],
                      dpi: float) -> list[tuple[str, float]]:
         """Readings of one word cut out with its line's full height (so dots and
-        descenders are kept), at each of LINE_HEIGHTS. Only single-word readings count."""
+        descenders are kept), at each of LINE_HEIGHTS, as a line and as a single word
+        (Tesseract 5.4.0 sometimes reads nothing in line mode). Only single-word readings count."""
         y0, y1 = int(min(box[1], band[0])), int(max(box[3], band[1]))
         if y1 <= y0:
             return []
@@ -327,21 +381,23 @@ class TesseractEngine(Engine):
         out = []
         for target in LINE_HEIGHTS:
             s = target / (y1 - y0)
-            data = pt.image_to_data(_scaled(crop, s), lang="+".join(langs),
-                                    config="--psm 7 --dpi %d" % max(70, int(dpi * s)), output_type=pt.Output.DICT)
-            tokens = []
-            for raw, conf in zip(data["text"], data["conf"], strict=False):
-                text = clean_text(raw or "")
-                try:
-                    conf = float(conf)
-                except (TypeError, ValueError):
-                    continue
-                if text and conf >= 0:
-                    tokens.append((text, conf))
-            if len(tokens) == 1 and any(ch.isalpha() for ch in tokens[0][0]):
-                out.append(tokens[0])
-                if tokens[0][1] >= SURE:
-                    break
+            for psm in (7, 8):
+                data = pt.image_to_data(_scaled(crop, s), lang="+".join(langs),
+                                        config="--psm %d --dpi %d" % (psm, max(70, int(dpi * s))),
+                                        output_type=pt.Output.DICT)
+                tokens = []
+                for raw, conf in zip(data["text"], data["conf"], strict=False):
+                    text = clean_text(raw or "")
+                    try:
+                        conf = float(conf)
+                    except (TypeError, ValueError):
+                        continue
+                    if text and conf >= 0:
+                        tokens.append((text, conf))
+                if len(tokens) == 1 and any(ch.isalpha() for ch in tokens[0][0]):
+                    out.append(tokens[0])
+                    if tokens[0][1] >= SURE:
+                        return out
         return out
 
     def _recover_orphans(self, gray: np.ndarray, ink: np.ndarray, rules: cv.Rules, words: list[TWord],
@@ -387,9 +443,14 @@ class TesseractEngine(Engine):
         total = int(ink_cols.sum())
         variants = [(1.0, 6)]
         rows = np.flatnonzero(left.any(axis=1))
-        if total and len(rows) and len(cv.line_bands(gray, box, dpi)) <= 1:
+        # Lines are counted in the leftover ink only: a descender of the line above, inside the
+        # margin, made "الخارجية." look like two lines and lose its single-line readings.
+        alone = np.where(left, crop, 255).astype(crop.dtype)
+        if total and len(rows) and len(cv.line_bands(alone, (0, 0, x1 - x0, y1 - y0), dpi)) <= 1:
             height = rows[-1] - rows[0] + 1
-            variants += [(target / height, 7) for target in LINE_HEIGHTS]
+            # As a line (psm 7), a raw line (13) and a single word (8): Tesseract 5.4.0 often returns
+            # nothing for a lone Arabic line in modes 6 and 7, and reads it right in one of the others.
+            variants += [(1.0, 13)] + [(target / height, psm) for target in LINE_HEIGHTS for psm in (7, 8, 13)]
         pt = self._ready()
         best: list[tuple[Box, str, float, int, int]] = []
         best_score = (-1.0, -1.0)
@@ -477,9 +538,11 @@ class TesseractEngine(Engine):
             c.text = text or page_text[id(c)]
 
     def _read_crop(self, crop: np.ndarray, lang: str, dpi: float, psm: int = 7) -> tuple[str, float]:
-        """Text and mean confidence of a small image; a block read is the fallback."""
+        """Text and mean confidence of a small image. A one-line reading that comes back empty is
+        tried as a single word (Tesseract 5.4.0 returns nothing for some one-word Arabic cells, such
+        as "التحليل", read as a line), then as a block."""
         pt = self._ready()
-        for mode in dict.fromkeys((psm, 6)):
+        for mode in dict.fromkeys((psm, 8, 6) if psm == 7 else (psm, 6)):
             data = pt.image_to_data(crop, lang=lang, config="--psm %d --dpi %d" % (mode, int(dpi)),
                                     output_type=pt.Output.DICT)
             words = []
@@ -524,6 +587,72 @@ class TesseractEngine(Engine):
 
 
 # ---------------------------------------------------------------- assembly
+
+
+def _reorder_lines(words: list[TWord], line_rtl: dict, keys: set) -> list[TWord]:
+    """The Arabic lines among `keys` with their words in reading order; other lines as they are.
+
+    Words are put right to left by position, with runs of English words kept left to right
+    inside ("Amlodipine 5 mg"), by the rule Tesseract itself orders a line with."""
+    order: dict[tuple, list[TWord]] = {}
+    for tw in words:
+        order.setdefault(tw.key, []).append(tw)
+    for key, line in order.items():
+        if key in keys and line_rtl.get(key):
+            line[:] = _bidi_order(sorted(line, key=lambda tw: -tw.box[2]))
+    out, seen = [], set()
+    for tw in words:
+        if tw.key not in seen:
+            seen.add(tw.key)
+            out.extend(order[tw.key])
+    return out
+
+
+def _bidi_order(right_to_left: list[TWord]) -> list[TWord]:
+    """Words of a right-to-left line, given right to left by position, in reading order.
+    English words are left to right; numbers and punctuation have no direction of their own."""
+    def kind(tw: TWord) -> str:
+        if is_rtl(tw.text):
+            return "R"
+        return "L" if any(ch.isalpha() for ch in tw.text) else "N"
+
+    kinds = [kind(tw) for tw in right_to_left]
+    # A number or sign between two English words belongs to their run ("Amlodipine 5 mg"); anywhere
+    # else it follows the line ("الكرياتينين 1.1 mg/dL").
+    for i, k in enumerate(kinds):
+        if k == "N":
+            before = next((kinds[j] for j in range(i - 1, -1, -1) if kinds[j] != "N"), "R")
+            after = next((kinds[j] for j in range(i + 1, len(kinds)) if kinds[j] != "N"), "R")
+            kinds[i] = "L" if before == after == "L" else "R"
+    out, run = [], []
+    for tw, k in zip(right_to_left, kinds, strict=True):
+        if k == "L":
+            run.append(tw)
+            continue
+        out.extend(reversed(run))
+        run = []
+        out.append(tw)
+    out.extend(reversed(run))
+    return out
+
+
+def _unsure_runs(words: list[TWord], unsure) -> list[list[TWord]]:
+    """Runs of two or more neighbouring unsure words on one line (closer than a line height)."""
+    runs = []
+    for line in _group(words, 3).values():
+        line = sorted(line, key=lambda tw: tw.box[0])
+        run: list[TWord] = []
+        for tw in line:
+            height = max(1.0, tw.box[3] - tw.box[1])
+            if unsure(tw) and run and tw.box[0] - run[-1].box[2] <= height:
+                run.append(tw)
+            else:
+                if len(run) >= 2:
+                    runs.append(run)
+                run = [tw] if unsure(tw) else []
+        if len(run) >= 2:
+            runs.append(run)
+    return runs
 
 
 def _scaled(img: np.ndarray, scale: float) -> np.ndarray:
@@ -643,6 +772,21 @@ def _paragraph_blocks(words: list[TWord], page_h: int, ink: np.ndarray) -> list[
         top = max(lead, key=lambda t: t[0])[1]
         top.kind, top.level = TITLE, 1
     return list(zip(keys, blocks, strict=True))
+
+
+def _continues(block: Block, paragraphs: list[Block]) -> bool:
+    """A recovered line of text right under a paragraph, within its width, is that paragraph's
+    last line (Tesseract 5.4.0 skipped "الخارجية." at the end of one): it is joined to it."""
+    if block.kind != TEXT:
+        return False
+    line_h = block.box[3] - block.box[1]
+    for p in paragraphs:
+        if (p.kind == TEXT and abs(block.box[1] - p.box[3]) <= 0.5 * line_h
+                and p.box[0] - line_h <= block.box[0] and block.box[2] <= p.box[2] + line_h):
+            p.text = _join_lines([p.text, block.text])
+            p.box = union([p.box, block.box])
+            return True
+    return False
 
 
 def _visual_lines(words: list[TWord]) -> list[list[TWord]]:

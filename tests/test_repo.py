@@ -3,6 +3,7 @@
 import re
 
 from conftest import ROOT
+from hyperocr.engines.tesseract_engine import TESTED_VERSION, WINGET_VERSION
 
 
 def test_there_is_a_licence():
@@ -16,4 +17,9 @@ def test_the_readme_makes_no_claim_the_code_cant_back():
     assert "phone browser" not in readme.lower()            # the server listens on this computer only
     for image in re.findall(r"!\[[^\]]*\]\((docs/[^)]+)\)", readme):
         assert (ROOT / image).is_file(), image
+
+
+def test_windows_setup_installs_the_tested_tesseract():
+    setup = (ROOT / "setup-windows.bat").read_text(encoding="utf-8")
+    assert "--version %s" % WINGET_VERSION in setup and WINGET_VERSION.startswith(TESTED_VERSION)
 

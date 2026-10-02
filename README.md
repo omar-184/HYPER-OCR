@@ -47,7 +47,7 @@ You need the internet **once**, during setup. After that the app never goes onli
 1. Download the latest release from the repository's **Releases** page (`HYPER-OCR-<version>.zip`) and unzip it somewhere, for example in `Documents`. Updates later come from the same page (see [Updating](#updating)).
 2. Double-click **`setup-windows.bat`**. It installs, where missing:
    - Python 3.12;
-   - Tesseract OCR;
+   - Tesseract OCR 5.4.0, the version HYPER-OCR is tested with (if another version is already installed, setup keeps it and says so: other versions read some words and numbers differently);
    - the app's packages;
    - the English and Arabic language files.
 
@@ -64,6 +64,8 @@ You need the internet **once**, during setup. After that the app never goes onli
 ### Linux
 
 Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `apt` and asks for your password.
+
+On macOS and Linux, setup installs the Tesseract your package manager offers and tells you when it isn't 5.4.0, the version the tests pass on. The tests also pass on 5.3.4 (Ubuntu 24.04).
 
 ## Use
 
@@ -201,7 +203,7 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 ```
 python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pip install --no-deps "markitdown>=0.1.2,<0.2"     # without magika / onnxruntime, as setup does
-.venv/bin/python -m pytest          # 55 tests; the CPU tests need Tesseract with eng + ara
+.venv/bin/python -m pytest          # the CPU tests need Tesseract (5.4.0, or 5.3.4) with eng + ara + osd
 .venv/bin/python tests/fixtures/make_fixtures.py   # rebuild the scanned test PDFs
 ```
 

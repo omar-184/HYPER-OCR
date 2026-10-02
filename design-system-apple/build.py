@@ -39,12 +39,17 @@ APP_ICON = re.compile(r'(<img class="app-icon"[^>]*? src=")[^"]*(")')
 INK = "#000000"   # icons as files can't inherit colour: drawn in `label` (light)
 
 
+def _lf(text: str) -> str:
+    """Line endings don't count: a Windows checkout may have turned LF into CRLF."""
+    return text.replace("\r\n", "\n")
+
+
 def css_vars(block: str) -> dict[str, str]:
     return {m.group(1): " ".join(m.group(2).split()) for m in re.finditer(r"--([\w-]+):\s*([^;]+);", block)}
 
 
 def read_style() -> tuple[str, dict[str, str], dict[str, str]]:
-    css = (STATIC / "style.css").read_text(encoding="utf-8")
+    css = _lf((STATIC / "style.css").read_text(encoding="utf-8"))
     light = re.search(r"^:root \{(.*?)^\}", css, re.S | re.M)
     dark = re.search(r'^:root\[data-theme="dark"\] \{(.*?)^\}', css, re.S | re.M)
     if not light or not dark or BASE_MARK not in css:
@@ -57,7 +62,7 @@ def is_color(value: str) -> bool:
 
 
 def sync_tokens(light: dict[str, str], dark: dict[str, str]) -> str:
-    tokens = json.loads((PROJECT / "tokens.json").read_text(encoding="utf-8"))
+    tokens = json.loads(_lf((PROJECT / "tokens.json").read_text(encoding="utf-8")))
     by_name = {t["name"]: t for t in tokens["color"]["tokens"]}
     css_colors = [n for n, v in light.items() if is_color(v)]
     missing = [n for n in css_colors if n not in by_name]
@@ -91,7 +96,7 @@ def bundle_css(css: str, light: dict[str, str]) -> str:
 
 
 def bundle_js() -> str:
-    js = (STATIC / "motion.js").read_text(encoding="utf-8")
+    js = _lf((STATIC / "motion.js").read_text(encoding="utf-8"))
     if "</script" in js.lower() or "<!--" in js:
         sys.exit("motion.js contains </script or <!--, which a bundle may not")
     header = '/* @ds-bundle: {"format":4,"namespace":"AppleStyle","components":[]} */'
@@ -99,7 +104,7 @@ def bundle_js() -> str:
 
 
 def sprite_and_icons() -> tuple[str, dict[str, str]]:
-    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    html = _lf((STATIC / "index.html").read_text(encoding="utf-8"))
     m = re.search(r'<svg class="sprite"[^>]*>.*?</svg>', html, re.S)
     if not m:
         sys.exit("index.html has no icon sprite")
@@ -122,19 +127,20 @@ def main() -> None:
         PROJECT / "tokens.json": sync_tokens(light, dark),
         PROJECT / "components" / "bundle.css": bundle_css(css, light),
         PROJECT / "components" / "bundle.js": bundle_js(),
-        PROJECT / "assets" / "Logos" / "app-icon.svg": (STATIC / "icon.svg").read_text(encoding="utf-8"),
+        PROJECT / "assets" / "Logos" / "app-icon.svg": _lf((STATIC / "icon.svg").read_text(encoding="utf-8")),
     }
     for name, svg in icons.items():
         out[PROJECT / "assets" / "Icons" / ("%s.svg" % name)] = svg
-    icon_uri = "data:image/svg+xml;base64," + base64.b64encode((STATIC / "icon.svg").read_bytes()).decode()
+    icon_svg = _lf((STATIC / "icon.svg").read_text(encoding="utf-8")).encode("utf-8")
+    icon_uri = "data:image/svg+xml;base64," + base64.b64encode(icon_svg).decode()
     for preview in sorted((PROJECT / "components").glob("*/preview.html")):
-        text = preview.read_text(encoding="utf-8")
+        text = _lf(preview.read_text(encoding="utf-8"))
         text = SPRITE.sub(lambda m: m.group(1) + "\n" + sprite + "\n" + m.group(3), text)
         text = APP_ICON.sub(lambda m: m.group(1) + icon_uri + m.group(2), text)
         out[preview] = text
     old_icons = {p for p in (PROJECT / "assets" / "Icons").glob("*.svg")} - set(out)
 
-    changed = [p for p, text in out.items() if not p.exists() or p.read_text(encoding="utf-8") != text]
+    changed = [p for p, text in out.items() if not p.exists() or _lf(p.read_text(encoding="utf-8")) != _lf(text)]
     for p in changed:
         print(("out of date: " if check else "wrote: ") + str(p.relative_to(HERE)))
     for p in sorted(old_icons):

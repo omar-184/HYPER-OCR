@@ -30,6 +30,8 @@ echo "Installing packages ..."
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
 
+.venv/bin/python -c "from hyperocr.engines.tesseract_engine import version_note; print(version_note())"
+
 echo "Adding the English and Arabic languages ..."
 .venv/bin/python -m hyperocr.languages add eng ara osd || echo "Languages could not be downloaded; the system's Tesseract languages will be used."
 

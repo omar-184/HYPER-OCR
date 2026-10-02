@@ -41,7 +41,7 @@ rem ---- 3. Tesseract OCR (the engine that works on any computer)
 "%VPY%" -c "import sys; from hyperocr.engines.tesseract_engine import find_tesseract; sys.exit(0 if find_tesseract() else 1)"
 if errorlevel 1 (
   echo Installing Tesseract OCR ...
-  winget install -e --id UB-Mannheim.TesseractOCR --accept-source-agreements --accept-package-agreements
+  winget install -e --id UB-Mannheim.TesseractOCR --version 5.4.0.20240606 --accept-source-agreements --accept-package-agreements
   if errorlevel 1 (
     echo.
     echo Tesseract could not be installed automatically. Download it from
@@ -49,6 +49,8 @@ if errorlevel 1 (
     goto :fail
   )
 )
+
+"%VPY%" -c "from hyperocr.engines.tesseract_engine import version_note; print(version_note())"
 
 rem ---- 4. English and Arabic for Tesseract
 echo Adding the English and Arabic languages ...

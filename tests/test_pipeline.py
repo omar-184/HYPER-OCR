@@ -143,6 +143,8 @@ def test_tesseract_arabic(tmp_path):
     assert rows[2][:2] == ["الكرياتينين", "1.1"]
     _assert_checkable(out, "طابِق كل رقم")
     assert out.markdown.startswith("# تقرير المتابعة الطبية")
+    # Tesseract 5.4.0 skips this paragraph's last line; it is recovered and joined back.
+    assert "تمت مراجعة نتائج التحاليل في العيادة الخارجية." in out.markdown
     # Tesseract's page reading skips this heading; the recovered line used to lose "نتا".
     assert "\n## نتائج التحاليل\n" in out.markdown
     assert _search(pdf, "نتائج")
@@ -200,7 +202,7 @@ def test_a_stamped_scan_still_gets_its_ocr_layer(tmp_path):
     assert not any(w["key"] == "keptText" for w in out.warnings)
 
 
-def _turned_copy(tmp_path, degrees: dict[int, int]) -> "Path":
+def _turned_copy(tmp_path, degrees: dict[int, int]):
     """The English fixture as a scanner would have fed it: page content turned, no /Rotate flag."""
     src = pymupdf.open(FIXTURES / "scanned_english.pdf")
     out = pymupdf.open()
