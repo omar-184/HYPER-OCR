@@ -17,7 +17,8 @@ import sys
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+from .paths import APP_ROOT as ROOT   # the checkout, or the desktop app's folder
+
 SOURCES = {
     "standard": "https://github.com/tesseract-ocr/tessdata/raw/main/%s.traineddata",
     "best": "https://github.com/tesseract-ocr/tessdata_best/raw/main/%s.traineddata",

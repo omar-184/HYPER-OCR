@@ -15,9 +15,16 @@ packages they are installed first, before any file is touched: if that fails,
 nothing changes. The replaced files are kept in .backup/<version>/ (only the last
 update's) and put back automatically if anything goes wrong while copying.
 
+The desktop app (HYPER-OCR.exe) is updated by its installer instead: the release's
+HYPER-OCR-Setup-<version>.exe, checked against its .sha256 like the zip, is started
+and replaces the whole app, Tesseract included; the app closes, and the installer
+opens the new version. Windows installs it for the current user, so no
+administrator prompt appears.
+
 This runs as its own process, started by the app's "Check for Updates" button
-(or the update-windows.bat / update.sh files). It is the only part of HYPER-OCR
-that goes online, and only when asked.
+(or the update-windows.bat / update.sh files; in the desktop app,
+HYPER-OCR.exe --update). It is the only part of HYPER-OCR that goes online, and
+only when asked.
 """
 
 from __future__ import annotations
@@ -38,10 +45,14 @@ import zipfile
 from pathlib import Path
 
 from . import __version__
+from .paths import APP_ROOT, FROZEN, no_window
 
 REPO = os.environ.get("HYPEROCR_UPDATE_REPO", "omar-184/HYPER-OCR")
 API = os.environ.get("HYPEROCR_UPDATE_API", "https://api.github.com").rstrip("/")
-ROOT = Path(os.environ.get("HYPEROCR_APP_ROOT", Path(__file__).resolve().parents[1]))
+ROOT = Path(os.environ.get("HYPEROCR_APP_ROOT", APP_ROOT))
+# The desktop app updates through its installer; a checkout through the zip.
+INSTALLER = FROZEN or os.environ.get("HYPEROCR_UPDATE_KIND") == "installer"
+SETUP_FOLDER = "hyperocr-setup-"      # in the temporary folder; the previous update's is removed
 # Never touched by an update: the environment, models, languages, backups.
 KEEP = {".venv", "venv", "models", "tessdata", "tesseract", ".backup", ".git", ".github"}
 REQUIREMENTS = ("requirements.txt", "requirements-gpu.txt")
@@ -87,6 +98,11 @@ def _latest_release() -> dict | None:
         return None
 
 
+def asset_name(version: str, installer: bool | None = None) -> str:
+    installer = INSTALLER if installer is None else installer
+    return ("HYPER-OCR-Setup-%s.exe" if installer else "HYPER-OCR-%s.zip") % version
+
+
 def check() -> dict:
     current = parse_version(__version__)
     state = {"current": _fmt(current), "latest": _fmt(current), "available": False, "release": None}
@@ -94,13 +110,22 @@ def check() -> dict:
     if release is None:
         return state                                  # nothing published yet
     latest = parse_version(str(release.get("tag_name", "")).lstrip("vV"))
-    name = "HYPER-OCR-%s.zip" % _fmt(latest)
+    name = asset_name(_fmt(latest))
     assets = {a.get("name"): a for a in release.get("assets", [])}
     if name not in assets or name + ".sha256" not in assets:
         raise UpdateError("release %s has no %s with its .sha256" % (release.get("tag_name"), name))
     state.update(latest=_fmt(latest), available=latest > current, release=release.get("tag_name"),
-                 zip=assets[name]["browser_download_url"], sha256=assets[name + ".sha256"]["browser_download_url"])
+                 download=assets[name]["browser_download_url"], sha256=assets[name + ".sha256"]["browser_download_url"])
     return state
+
+
+def _verified(state: dict) -> bytes:
+    """The release's file, refused unless it matches the SHA-256 published with it."""
+    data = _get(state["download"], accept="application/octet-stream")
+    expected = _get(state["sha256"], accept="application/octet-stream").decode("ascii", "replace").split()
+    if not expected or expected[0].lower() != hashlib.sha256(data).hexdigest():
+        raise UpdateError("the download does not match its published SHA-256: not installed")
+    return data
 
 
 def apply(say=print) -> dict:
@@ -109,13 +134,11 @@ def apply(say=print) -> dict:
         say({"step": "upToDate", **state})
         return dict(state, updated=False)
     say({"step": "downloading", "version": state["latest"]})
+    if INSTALLER:
+        return _run_installer(state, _verified(state), say)
     with tempfile.TemporaryDirectory(prefix="hyperocr-update-") as tmp:
         archive = Path(tmp) / "update.zip"
-        archive.write_bytes(_get(state["zip"], accept="application/octet-stream"))
-        expected = _get(state["sha256"], accept="application/octet-stream").decode("ascii", "replace").split()
-        actual = hashlib.sha256(archive.read_bytes()).hexdigest()
-        if not expected or expected[0].lower() != actual:
-            raise UpdateError("the download does not match its published SHA-256: not installed")
+        archive.write_bytes(_verified(state))
         say({"step": "unpacking"})
         new_root = _unpack(archive, Path(tmp) / "new")
         found = parse_version((new_root / "hyperocr" / "__init__.py").read_text(encoding="utf-8"))
@@ -136,6 +159,31 @@ def apply(say=print) -> dict:
             raise
         _prune_backups(keep=backup)
     result = dict(state, updated=True, packages=packages_changed)
+    say({"step": "done", **result})
+    return result
+
+
+def _run_installer(state: dict, data: bytes, say) -> dict:
+    """Start the checked installer on its own and report done: the app then closes, the
+    installer replaces it (its /CLOSEAPPLICATIONS closes it if it hasn't yet) and opens the
+    new version. Only the previous update's installer is cleaned up, never this one: it is
+    still running after this process ends."""
+    tmp = Path(tempfile.gettempdir())
+    for old in tmp.glob(SETUP_FOLDER + "*"):
+        shutil.rmtree(old, ignore_errors=True)
+    folder = Path(tempfile.mkdtemp(prefix=SETUP_FOLDER))
+    setup = folder / asset_name(state["latest"], installer=True)
+    setup.write_bytes(data)
+    say({"step": "installing"})
+    cmd = [str(setup), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"]
+    if os.environ.get("HYPEROCR_UPDATE_DRY_RUN") == "1":      # tests: everything but starting it
+        cmd = None
+    elif sys.platform == "win32":
+        detached = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        subprocess.Popen(cmd, close_fds=True, creationflags=detached)
+    else:
+        raise UpdateError("the installer runs on Windows only")
+    result = dict(state, updated=True, packages=False, installer=str(setup))
     say({"step": "done", **result})
     return result
 
@@ -272,7 +320,7 @@ def _install_packages(new_root: Path) -> None:
 
 
 def _run(cmd: list[str]) -> None:
-    done = subprocess.run(cmd, capture_output=True, text=True)
+    done = subprocess.run(cmd, capture_output=True, text=True, **no_window())
     if done.returncode != 0:
         raise UpdateError("package install failed: %s" % (done.stderr.strip().splitlines() or ["?"])[-1])
 

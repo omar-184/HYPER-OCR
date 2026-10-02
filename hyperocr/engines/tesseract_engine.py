@@ -43,6 +43,7 @@ from ..document import (
     mostly_rtl,
     union,
 )
+from ..paths import APP_ROOT, FROZEN, no_window
 from . import layout_cv as cv
 from .base import Availability, Engine, Options
 
@@ -77,7 +78,7 @@ def tesseract_version(path: str | None = None) -> str:
     if not path:
         return ""
     try:
-        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=30).stdout
+        out = subprocess.run([path, "--version"], capture_output=True, text=True, timeout=30, **no_window()).stdout
     except (OSError, subprocess.SubprocessError):
         return ""
     m = re.search(r"tesseract v?(\d+\.\d+\.\d+)", out)
@@ -96,8 +97,10 @@ def version_note() -> str:
 def find_tesseract() -> str | None:
     """The tesseract executable: setting, PATH, then the usual install folders."""
     candidates = [os.environ.get("HYPEROCR_TESSERACT", "")]
+    if FROZEN:      # the desktop app always uses the Tesseract it was built and tested with
+        candidates.append(str(APP_ROOT / "tesseract" / ("tesseract.exe" if sys.platform == "win32" else "tesseract")))
     candidates.append(shutil.which("tesseract") or "")
-    here = Path(__file__).resolve().parents[2]
+    here = APP_ROOT
     if sys.platform == "win32":
         candidates += [
             str(here / "tesseract" / "tesseract.exe"),

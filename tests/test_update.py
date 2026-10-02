@@ -91,6 +91,16 @@ class FakeGitHub:
             {"name": name, "browser_download_url": self.base + "/dl/" + name},
             {"name": name + ".sha256", "browser_download_url": self.base + "/dl/" + name + ".sha256"}]}
 
+    def publish_installer(self, version="9.9.0", data=b"MZ stand-in installer", checksum=None):
+        """What the release workflow attaches for the desktop app, beside the zip."""
+        name = "HYPER-OCR-Setup-%s.exe" % version
+        checksum = checksum or hashlib.sha256(data).hexdigest()
+        self.files["/dl/" + name] = (data, "application/octet-stream")
+        self.files["/dl/" + name + ".sha256"] = (("%s  %s\n" % (checksum, name)).encode(), "text/plain")
+        self.release["assets"] += [
+            {"name": name, "browser_download_url": self.base + "/dl/" + name},
+            {"name": name + ".sha256", "browser_download_url": self.base + "/dl/" + name + ".sha256"}]
+
 
 @pytest.fixture
 def fake_github(tmp_path):
@@ -193,3 +203,32 @@ def test_server_check_endpoint(fake_github, monkeypatch, tmp_path):
     r = client.post("/api/update/check", headers={"X-HyperOCR": "1"})
     assert r.status_code == 200 and r.get_json()["latest"] == "9.9.0"
     assert client.get("/api/update/status").get_json()["state"] == "idle"
+
+
+def test_the_desktop_app_updates_through_its_checked_installer(fake_github, tmp_path):
+    """HYPER-OCR.exe downloads the release's installer, checks it and starts it (here: everything
+    but starting it); its own files are left to the installer."""
+    app, env, github = fake_github
+    github.publish_installer()
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    env = dict(env, HYPEROCR_UPDATE_KIND="installer", HYPEROCR_UPDATE_DRY_RUN="1", TMPDIR=str(temp), TEMP=str(temp),
+               TMP=str(temp))
+    out, events = _run(app, env, "--yes")
+    assert out.returncode == 0, out.stderr
+    assert [e["step"] for e in events] == ["downloading", "installing", "done"]
+    setup = events[-1]["installer"]
+    assert setup.endswith("HYPER-OCR-Setup-9.9.0.exe") and open(setup, "rb").read() == b"MZ stand-in installer"
+    assert __version__ in (app / "hyperocr" / "__init__.py").read_text()      # the installer replaces the app
+    _run(app, env, "--yes")
+    assert len(list(temp.glob("hyperocr-setup-*"))) == 1                       # only the latest installer is kept
+
+    github.publish(); github.publish_installer(checksum="0" * 64)
+    out, events = _run(app, env, "--yes")
+    assert out.returncode == 1 and events[-1]["step"] == "failed" and "SHA-256" in events[-1]["error"]
+
+
+def test_a_release_without_the_installer_is_not_offered_to_the_desktop_app(fake_github):
+    app, env, github = fake_github                         # the zip only
+    out, events = _run(app, dict(env, HYPEROCR_UPDATE_KIND="installer"), "--check")
+    assert out.returncode == 1 and "HYPER-OCR-Setup-9.9.0.exe" in events[-1]["error"]

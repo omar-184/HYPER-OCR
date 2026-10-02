@@ -14,9 +14,9 @@ from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 from . import __version__, engines, inputs
 from .engines.base import Options
 from .jobs import JobManager
+from .paths import APP_ROOT, FROZEN, no_window
 
 STATIC = Path(__file__).with_name("static")
-APP_ROOT = Path(__file__).resolve().parents[1]
 MAX_FILES = 500
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]", "::1"}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; "
@@ -44,6 +44,7 @@ def create_app(jobs: JobManager | None = None) -> Flask:
                 system_cache.clear()
                 system_cache.update({
                     "version": __version__,
+                    "desktop": FROZEN,          # the installed app: updates come as an installer
                     "engines": described,
                     "auto": auto,
                     "languages": langs,
@@ -151,18 +152,22 @@ def create_app(jobs: JobManager | None = None) -> Flask:
         return send_file(path, mimetype="image/jpeg")
 
     # ------------------------------------------------------------ updates
-    # The update runs as its own process (python -m hyperocr.update): this server
-    # stays offline. Nothing is checked unless the person asks.
+    # The update runs as its own process (python -m hyperocr.update, or HYPER-OCR.exe
+    # --update in the desktop app): this server stays offline. Nothing is checked unless
+    # the person asks.
     update_state: dict = {"state": "idle", "events": []}
     update_lock = threading.Lock()
 
     def updater(*args: str) -> list[str]:
+        if FROZEN:
+            return [sys.executable, "--update", "--json", *args]
         return [sys.executable, "-m", "hyperocr.update", "--json", *args]
 
     @app.post("/api/update/check")
     def api_update_check():
         try:
-            done = subprocess.run(updater("--check"), cwd=str(APP_ROOT), capture_output=True, text=True, timeout=60)
+            done = subprocess.run(updater("--check"), cwd=str(APP_ROOT), capture_output=True, text=True, timeout=60,
+                                  **no_window())
             lines = [l for l in done.stdout.splitlines() if l.strip().startswith("{")]
             data = json.loads(lines[-1]) if lines else {}
         except (subprocess.TimeoutExpired, ValueError, OSError) as exc:
@@ -185,7 +190,7 @@ def create_app(jobs: JobManager | None = None) -> Flask:
     def run_update() -> None:
         try:
             proc = subprocess.Popen(updater("--yes"), cwd=str(APP_ROOT), stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, text=True)
+                                    stderr=subprocess.STDOUT, text=True, **no_window())
             for line in proc.stdout:
                 try:
                     update_state["events"].append(json.loads(line))

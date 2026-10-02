@@ -239,6 +239,9 @@
   function renderSystem() {
     const sys = state.system;
     if (!sys) return;
+    const footer = $('upd-footer');                    // the desktop app updates through its installer
+    footer.dataset.i18n = sys.desktop ? 'updFooterDesktop' : 'updFooter';
+    footer.textContent = t(footer.dataset.i18n);
     const select = $('engine');
     for (const opt of select.options) {
       opt.textContent = t(opt.dataset.i18n);

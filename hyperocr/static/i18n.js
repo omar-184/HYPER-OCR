@@ -185,6 +185,10 @@
       en: 'Updating replaces only the app itself. Python, Tesseract, languages and the Unlimited-OCR model stay installed. This button is the only thing in HYPER-OCR that goes online.',
       ar: 'يستبدل التحديث التطبيق نفسه فقط، وتبقى Python وTesseract واللغات ونموذج Unlimited-OCR مثبتة. هذا الزر هو الشيء الوحيد في HYPER-OCR الذي يتصل بالإنترنت.',
     },
+    updFooterDesktop: {
+      en: 'Updating downloads the new version from GitHub, checks it and installs it over this one: HYPER-OCR closes and opens again. Added languages stay. This button is the only thing in HYPER-OCR that goes online.',
+      ar: 'يُنزّل التحديث الإصدار الجديد من GitHub ويتحقق منه ثم يثبّته مكان هذا الإصدار: يُغلق HYPER-OCR ثم يُفتح من جديد. تبقى اللغات المضافة. هذا الزر هو الشيء الوحيد في HYPER-OCR الذي يتصل بالإنترنت.',
+    },
     appearanceHeader: { en: 'Appearance', ar: 'المظهر' },
     computerHeader: { en: 'This Computer', ar: 'هذا الجهاز' },
     eng_unlimited: { en: 'Unlimited-OCR', ar: 'Unlimited-OCR' },
