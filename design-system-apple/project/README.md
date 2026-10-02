@@ -7,7 +7,7 @@ Use `tokens.css` for every colour, font stack, spacing, radius and shadow, `comp
 - **Plain and short.** Say what happens: "Convert 4 Files", "Download All (ZIP)", "Check". Buttons are verbs in Title Case; counts appear when they help.
 - **Section headers** are short nouns ("Files", "Text recognition", "Output"), shown uppercase in English. **Footers** explain a consequence in one sentence: "You get one ZIP: a searchable PDF, a Markdown file, an Images folder and a Tables folder with one Word file per table."
 - **Errors** say what went wrong and what to do, naming the file: "“notes.txt” isn’t a PDF or a picture. Choose PDF, JPG, PNG, HEIC, TIFF, WebP or BMP files." No apologies, no codes.
-- **Status** uses the present tense and the real cause: "Tesseract will read the pages. To use Unlimited-OCR on an NVIDIA GPU, run the setup again and choose the GPU option."
+- **Status** uses the present tense and names what will happen: "Tesseract will read the pages on this computer’s processor."; an error names the fix: "Tesseract isn’t installed. Run the setup again."
 - **Typography of text:** curly quotes and apostrophes (“ ” ’), "·" between facts ("Photo · 363 KB"), "…" for work in progress ("Installing…"), a non-breaking space between a number and its unit ("15 s").
 - **No emoji.** Glyphs come from the icon set.
 - **Counts** use plural rules, never "1 pages": `Intl.PluralRules` picks the form; Arabic has six ("صفحة واحدة", "صفحتان", "3 صفحات", "11 صفحة").

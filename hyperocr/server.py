@@ -40,6 +40,7 @@ def create_app(jobs: JobManager | None = None) -> Flask:
                 gpu = next((e for e in described if e["id"] == "unlimited"), None)
                 auto = "unlimited" if gpu and gpu["ok"] else next(
                     (e["id"] for e in described if e["id"] == "unlimited-server" and e["ok"]), "tesseract")
+                # Without HYPEROCR_GPU=1 only Tesseract is described, so Automatic is Tesseract.
                 system_cache.clear()
                 system_cache.update({
                     "version": __version__,

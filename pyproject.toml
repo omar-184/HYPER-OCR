@@ -24,6 +24,9 @@ hyperocr = ["static/*", "outputs/*.ttf"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The GPU engine is experimental and off by default: run its tests with `pytest -m gpu`.
+markers = ["gpu: tests of the experimental Unlimited-OCR GPU engine (HYPEROCR_GPU=1)"]
+addopts = "-m 'not gpu'"
 
 [tool.ruff]
 line-length = 120

@@ -51,8 +51,7 @@ You need the internet **once**, during setup. After that the app never goes onli
    - the English and Arabic language files.
 
    If Windows installs Python, it asks you to run the setup once more.
-3. If you have an **NVIDIA graphics card**, setup offers to install Unlimited-OCR (see [The two OCR engines](#the-two-ocr-engines)). Answer `Y` to install it now, or `N` to stay with Tesseract.
-4. Double-click **`start-windows.bat`**. Your browser opens HYPER-OCR at `http://127.0.0.1:8765`. Keep the black window open while you use the app; close it to stop.
+3. Double-click **`start-windows.bat`**. Your browser opens HYPER-OCR at `http://127.0.0.1:8765`. Keep the black window open while you use the app; close it to stop.
 
 ### macOS
 
@@ -60,7 +59,6 @@ You need the internet **once**, during setup. After that the app never goes onli
 2. Open Terminal in this folder and run `./setup.sh`.
 3. Start the app by double-clicking **`start-mac.command`**. The first time, macOS may block it: right-click it, choose **Open**, then **Open** again.
 
-Macs have no NVIDIA GPU, so HYPER-OCR uses Tesseract on a Mac.
 
 ### Linux
 
@@ -77,9 +75,9 @@ Run `./setup.sh`, then `./start.sh`. On Ubuntu, setup installs Tesseract with `a
    - **Combine into One**: one searchable PDF, Markdown and ZIP with every page, in the order of the list. Drag the ☰ handle to reorder, or focus it and press ↑ / ↓.
    - **Each Separately**: every file gets its own searchable PDF, Markdown, `Images` and `Tables`, all in one ZIP.
 3. **Text recognition.**
-   - *Engine*: leave **Automatic**. It uses Unlimited-OCR when this computer can run it, otherwise Tesseract, and the line under the list says which and why.
+   - *Engine*: **Automatic** is Tesseract. (The experimental GPU engine is off; see [The OCR engine](#the-ocr-engine).)
    - *Resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
-   - *Languages*: tick every language that appears. Tesseract needs this; Unlimited-OCR works out the language itself.
+   - *Languages*: tick every language that appears. Tesseract reads only the languages you tick.
    - *Output*: put a picture of the original table in each Word file, and leave page headers, footers and page numbers out of the Markdown.
 4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time.
 5. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table. When you converted several files separately, tap a file to open its results.
@@ -101,32 +99,31 @@ What an update does:
 1. Reads the version number in `hyperocr/__init__.py` on the repository's default branch, and compares it with yours.
 2. Downloads that branch as a ZIP and copies its files over the app. Files that were removed from the app are removed here too. `.venv`, `models`, `tessdata`, `tesseract` and `.backup` are never touched.
 3. Keeps the previous version in `.backup/<version>/`. If anything fails while files are being copied, that backup is put back.
-4. Reinstalls packages only when the new version's `requirements.txt` differs (and the GPU packages only if they were installed).
+4. Reinstalls packages only when the new version's `requirements.txt` differs. The GPU packages are never downloaded unless the experimental GPU engine is switched on.
 
 Updating is the only thing in HYPER-OCR that goes online, and only when you click it. It runs as a separate program; the converter itself stays offline. The app is started by a small supervisor, so after an update it comes back on its own at the same address.
 
-## The two OCR engines
+## The OCR engine
 
-| | **Unlimited-OCR** (Baidu) | **Tesseract** |
-|---|---|---|
-| Needs | an NVIDIA graphics card (CUDA) and a one-time model download of several GB | any computer |
-| Quality | best: a 3-billion-parameter document model that also recognises tables, figures, headings and formulas | good on clean, printed scans |
-| Layout | from the model | from HYPER-OCR's own image analysis: bordered tables (merged cells included), figures, headings, captions |
-| Speed | a few seconds a page on a modern GPU | 2 to 5 seconds a page on a laptop processor |
+HYPER-OCR reads pages with **Tesseract**, on the computer's processor: 2 to 5 seconds a page on a laptop. Its layout comes from HYPER-OCR's own image analysis: bordered tables (merged cells included), figures, headings and captions.
 
-**Automatic** picks Unlimited-OCR when an NVIDIA GPU, the GPU packages and the model are all present. Otherwise it uses Tesseract and the settings card says what is missing.
-
-**To add Unlimited-OCR later** (NVIDIA GPU only), run the setup again and answer `Y`. Or, by hand:
+**Unlimited-OCR (Baidu) is experimental and switched off.** On graphics cards that can't really run its 3-billion-parameter model, it looked available and *Automatic* chose it, so conversions never finished. Setup no longer offers it and the app doesn't show it. It can only be switched on by hand, for testing on a capable NVIDIA card:
 
 ```
+set HYPEROCR_GPU=1                       (macOS and Linux: export HYPEROCR_GPU=1)
 .venv\Scripts\python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 .venv\Scripts\python -m pip install -r requirements-gpu.txt
-.venv\Scripts\python -m hyperocr.download_model        (or double-click download-model-windows.bat)
+.venv\Scripts\python -m hyperocr.download_model
 ```
 
-On macOS and Linux, use `.venv/bin/python` in place of `.venv\Scripts\python`. The model is saved in `models/Unlimited-OCR` and loaded from there with Hugging Face's offline mode switched on, so it never goes online. If Hugging Face is blocked where you are, use `python -m hyperocr.download_model --source modelscope`.
+then start the app from that same window. The model is saved in `models/Unlimited-OCR` and loaded with Hugging Face's offline mode on. A local vLLM or SGLang server also needs `HYPEROCR_GPU=1`, plus `HYPEROCR_OCR_SERVER=http://127.0.0.1:10000`.
 
-**Running Unlimited-OCR as a server (Linux, advanced).** If you prefer Baidu's official vLLM or SGLang server (see the [Unlimited-OCR README](https://github.com/baidu/Unlimited-OCR)), start it on this computer. Then start HYPER-OCR with `HYPEROCR_OCR_SERVER=http://127.0.0.1:10000`. A new engine choice, *Unlimited-OCR · local server*, appears. Only `localhost` addresses are accepted.
+**Already installed the GPU add-on and want the space back (about 10 GB)?** HYPER-OCR never deletes it for you. With the app closed, in this folder:
+
+```
+.venv\Scripts\python -m pip uninstall -y torch torchvision transformers
+rmdir /s /q models\Unlimited-OCR          (macOS and Linux: rm -rf models/Unlimited-OCR)
+```
 
 ## Languages
 
@@ -145,14 +142,14 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 - The page's Content Security Policy forbids any connection except to the app itself. No fonts, scripts or analytics load from anywhere else.
 - Uploads and results live in a temporary folder. They are deleted when you click **Convert Other Files**, six hours after a conversion, and when you close the app.
 - The only connection HYPER-OCR ever makes is **Software Update**, to `api.github.com` (and GitHub's download server), and only when you click it. It sends no information about you or your files.
-- No AI service is called. Unlimited-OCR is a model that runs on your own GPU.
+- No AI service is called.
 - While it converts, HYPER-OCR refuses every outgoing network connection except to this computer itself. Libraries that can report usage are switched off.
 - MarkItDown is installed without its file-type guesser, `magika`. That guesser runs on ONNX Runtime, which contacts Microsoft's telemetry servers as soon as it is loaded. HYPER-OCR always gives MarkItDown HTML, so it doesn't need the guesser, and it blocks ONNX Runtime from loading at all.
 
 ## How it works
 
 1. Pictures are first placed on PDF pages, one picture per page (JPEGs are kept byte for byte). Each page is then rendered to an image (300 dpi by default).
-2. **Unlimited-OCR** returns the page as tagged blocks: `<|det|>text [113, 567, 884, 698]<|/det|>…`. Each block has a type (title, text, table, image, caption, formula…) and a box on a 0–1000 grid. Tables come back as HTML. The model doesn't report individual lines, so HYPER-OCR finds each block's text lines in the image and spreads the block's words over them.
+2. **Unlimited-OCR** (experimental, off by default) returns the page as tagged blocks: `<|det|>text [113, 567, 884, 698]<|/det|>…`. Each block has a type (title, text, table, image, caption, formula…) and a box on a 0–1000 grid. Tables come back as HTML. The model doesn't report individual lines, so HYPER-OCR finds each block's text lines in the image and spreads the block's words over them.
 3. **Tesseract** reads words with their exact positions. First, HYPER-OCR removes scanner specks with a median filter; specks otherwise turn into fake Arabic dots. Then:
    - it finds bordered tables from their ruling lines, merged cells included, and reads each cell separately;
    - it finds figures as large areas of ink that aren't text;
@@ -170,20 +167,17 @@ Use Tesseract's codes: `fas` Persian, `urd` Urdu, `tur` Turkish, `chi_sim` Chine
 
 ## Limits
 
-- **Tesseract** finds tables that have **visible borders**. Borderless tables come out as text. Unlimited-OCR handles both.
+- **Tesseract** finds tables that have **visible borders**. Borderless tables come out as text.
 - Handwriting, stamps and very poor scans read badly with Tesseract.
 - At *Fast · 200 dpi*, small digits and decimal points can be misread (a lab range "1.2-0.6" came out as "1.2-06" in testing). Keep 300 dpi or more for documents where numbers matter.
 - In Arabic text, searching for a single word works in every viewer. Searching a phrase that mixes Arabic with numbers or English may not, in any viewer; born-digital Arabic PDFs behave the same way.
-- Unlimited-OCR needs an NVIDIA GPU with CUDA. Apple Silicon is not supported by Baidu's code, so Macs use Tesseract.
-- This build was tested with Tesseract on English and Arabic scans. Baidu's GPU model could not be run in the build environment (no GPU there). The Unlimited-OCR path is written to Baidu's published usage and output format, and tested end to end with simulated model output in that format.
+- The experimental Unlimited-OCR path (off by default) was never run on a real GPU; it was tested only with simulated model output.
 
 ## Troubleshooting
 
 | Message or problem | What to do |
 |---|---|
 | "Tesseract isn't installed" | Run the setup again. On Windows you can also install it from <https://github.com/UB-Mannheim/tesseract/wiki>. |
-| "The GPU add-on isn't installed" | Only matters with an NVIDIA GPU: run the setup again and answer `Y`. |
-| "The Unlimited-OCR model isn't downloaded yet" | Run `download-model-windows.bat` (or `./download-model.sh`) once, then restart the app. |
 | "This PDF is password-protected" | Open it, save a copy without the password, and convert the copy. |
 | A language is missing from the list | `python -m hyperocr.languages add <code>` (see [Languages](#languages)), then restart. |
 | The browser didn't open | Open <http://127.0.0.1:8765> yourself. If that port was taken, the black window shows the address it used. |

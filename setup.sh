@@ -33,19 +33,5 @@ echo "Installing packages ..."
 echo "Adding the English and Arabic languages ..."
 .venv/bin/python -m hyperocr.languages add eng ara osd || echo "Languages could not be downloaded; the system's Tesseract languages will be used."
 
-if command -v nvidia-smi >/dev/null 2>&1; then
-  echo
-  echo "An NVIDIA graphics card was found. Unlimited-OCR reads pages more accurately,"
-  echo "but needs about 3 GB of downloads now plus the model, several GB more."
-  read -r -p "Install Unlimited-OCR GPU support now? [y/N] " answer
-  if [[ "${answer:-n}" =~ ^[Yy] ]]; then
-    .venv/bin/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-    .venv/bin/python -m pip install -r requirements-gpu.txt
-    .venv/bin/python -m hyperocr.download_model
-  fi
-else
-  echo "No NVIDIA graphics card found: HYPER-OCR will use Tesseract."
-fi
-
 echo
 echo "Setup finished. Start HYPER-OCR with ./start.sh (on a Mac you can double-click start-mac.command)."

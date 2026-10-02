@@ -211,6 +211,8 @@ def _install_packages() -> None:
     pip = [sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "-q"]
     _run(pip + ["-r", str(ROOT / "requirements.txt")])
     _run(pip + ["--no-deps", "markitdown>=0.1.2,<0.2"])
+    if os.environ.get("HYPEROCR_GPU", "").strip() != "1":
+        return  # the experimental GPU engine is off: never download its packages
     try:
         import torch  # noqa: F401  (only people who installed GPU support get its updates)
 

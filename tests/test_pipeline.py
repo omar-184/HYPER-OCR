@@ -60,6 +60,7 @@ class FakeUnlimited(UnlimitedOCREngine):
 
 @pytest.fixture
 def fake_gpu(monkeypatch):
+    monkeypatch.setenv("HYPEROCR_GPU", "1")
     engines.get("tesseract")  # build the registry
     fake = FakeUnlimited()
     monkeypatch.setitem(engines._engines, "unlimited", fake)
@@ -70,6 +71,7 @@ def _search(pdf, term):
     return sum(len(p.search_for(term)) for p in pymupdf.open(pdf))
 
 
+@pytest.mark.gpu
 def test_unlimited_path_end_to_end(tmp_path, fake_gpu):
     stages = []
     out = convert(FIXTURES / "scanned_english.pdf", tmp_path, Options(engine="auto"), lambda d: stages.append(d["stage"]))

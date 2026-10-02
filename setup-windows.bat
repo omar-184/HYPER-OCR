@@ -54,30 +54,9 @@ rem ---- 4. English and Arabic for Tesseract
 echo Adding the English and Arabic languages ...
 "%VPY%" -m hyperocr.languages add eng ara osd
 
-rem ---- 5. Optional: Unlimited-OCR on an NVIDIA graphics card
-where nvidia-smi >nul 2>nul
-if errorlevel 1 (
-  echo No NVIDIA graphics card found: HYPER-OCR will use Tesseract.
-) else (
-  echo.
-  echo An NVIDIA graphics card was found. Unlimited-OCR reads pages more accurately,
-  echo but needs about 3 GB of downloads now plus the model, several GB more.
-  choice /C YN /M "Install Unlimited-OCR GPU support now"
-  if not errorlevel 2 call :gpu
-)
-
 echo.
 echo Setup finished. Double-click start-windows.bat to open HYPER-OCR.
 pause
-exit /b 0
-
-:gpu
-echo Installing PyTorch with CUDA ...
-"%VPY%" -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-if errorlevel 1 exit /b 1
-"%VPY%" -m pip install -r requirements-gpu.txt
-if errorlevel 1 exit /b 1
-"%VPY%" -m hyperocr.download_model
 exit /b 0
 
 :nopython
