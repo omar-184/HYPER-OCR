@@ -110,7 +110,15 @@ jobs:
               $small.Dispose(); $g.Dispose(); $bmp.Dispose()
             } catch { "No screenshot ($name): $_" }
           }
-          Start-Sleep 6
+          # The interface runs in the window once its script has called home from the Edge engine.
+          $log = "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log"
+          $shown = $false
+          foreach ($i in 1..90) {
+            if (Select-String -Path $log -Pattern "The window shows the interface" -Quiet -ErrorAction SilentlyContinue) { $shown = $true; break }
+            Start-Sleep 1
+          }
+          "Interface running in the window: $shown"
+          Start-Sleep 4
           Shot "1-opened"
           # Opening it again brings the open window forward; no second copy starts.
           $again = Start-Process "$dir\HYPER-OCR.exe" -PassThru
@@ -127,13 +135,16 @@ jobs:
           "--- text on the screen ---"
           & "$dir\tesseract\tesseract.exe" (Join-Path $shots "1-opened.png") stdout --tessdata-dir "$dir\tessdata" -l eng 2>$null |
             Where-Object { $_.Trim() } | Select-Object -First 30
-          "--- screen 1-opened.jpg, base64 ---"
-          if (Test-Path (Join-Path $shots "1-opened.jpg")) {
-            $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $shots "1-opened.jpg")))
-            for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
+          foreach ($name in "1-opened", "2-opened-again") {
+            "--- screen $name.jpg, base64 ---"
+            if (Test-Path (Join-Path $shots "$name.jpg")) {
+              $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $shots "$name.jpg")))
+              for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:$name:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
+            }
           }
           "--- end ---"
-          if (-not (Select-String -Path "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -Pattern "Window: Microsoft Edge WebView2" -Quiet)) { throw "the app did not open its own window" }
+          if (-not (Select-String -Path $log -Pattern "Window: Microsoft Edge WebView2" -Quiet)) { throw "the app did not open its own window" }
+          if (-not $shown) { throw "the window did not show the interface" }
           Stop-Process -Name HYPER-OCR -Force -ErrorAction SilentlyContinue
           Start-Sleep 2
           $out = Join-Path $env:RUNNER_TEMP "installed-self-test"

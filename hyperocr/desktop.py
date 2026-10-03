@@ -149,6 +149,7 @@ def run() -> int:
 
     app.extensions["hyperocr.restart"] = close_for_update
     app.extensions["hyperocr.show"] = show
+    note_when_the_interface_runs(app)
     try:
         if not open_window(url, jobs, shown):
             print("No window (WebView2 is missing): opened in the browser instead.", flush=True)
@@ -157,6 +158,20 @@ def run() -> int:
         server.close()
         jobs.close()
     return 0
+
+
+def note_when_the_interface_runs(app) -> None:
+    """Log once that the interface runs in the window: its script has asked for /api/system
+    from the Edge engine (whose requests say "Edg/"). A window that stays blank logs nothing."""
+    from flask import request
+
+    seen = threading.Event()
+
+    @app.before_request
+    def note():
+        if not seen.is_set() and request.path == "/api/system" and "Edg/" in (request.user_agent.string or ""):
+            seen.set()
+            print("The window shows the interface.", flush=True)
 
 
 def edge_available() -> bool:

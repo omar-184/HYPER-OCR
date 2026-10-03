@@ -183,3 +183,19 @@ def test_the_windowed_app_keeps_a_log_across_starts(monkeypatch, tmp_path):
     log = next((tmp_path / "data").rglob("hyperocr.log")).read_text(encoding="utf-8")
     assert "this is the first start" in log and "this is the second start" in log
     assert log.count("--- ") == 2
+
+
+def test_the_log_says_when_the_window_shows_the_interface(tmp_path, capsys):
+    """Once, when the page's script calls home from the Edge engine; not for other callers."""
+    from hyperocr.jobs import JobManager
+    from hyperocr.server import create_app
+
+    app = create_app(JobManager(tmp_path / "jobs"))
+    desktop.note_when_the_interface_runs(app)
+    client = app.test_client()
+    client.get("/api/system", headers={"User-Agent": "Mozilla/5.0 WindowsPowerShell/5.1"})
+    assert "shows the interface" not in capsys.readouterr().out
+    edge = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/140.0 Safari/537.36 Edg/140.0"}
+    client.get("/api/system", headers=edge)
+    client.get("/api/system", headers=edge)
+    assert capsys.readouterr().out.count("The window shows the interface.") == 1
