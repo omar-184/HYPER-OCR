@@ -81,24 +81,36 @@ def _keep_a_log() -> None:
     logging.basicConfig(stream=stream, level=logging.WARNING, format="%(asctime)s %(name)s: %(message)s")
 
 
-def bring_forward_running_copy(port: int = PORT) -> bool:
+def _address_file() -> Path:
+    """Where the open copy notes the address it uses (usually PORT; another when that was taken)."""
+    return user_data() / "window-address.txt"
+
+
+def bring_forward_running_copy() -> bool:
     """Is HYPER-OCR already open? Then ask it to bring its window forward; this second start
-    ends there. False when nothing answers at its address, or something else does (such as
-    the browser version, which has no window to show): then this one starts on another."""
+    ends there. False when nothing answers, or something else does (such as the browser
+    version, which has no window to show): then this one starts."""
+    ports = [PORT]
+    try:
+        noted = int(_address_file().read_text(encoding="ascii").split()[0])
+        ports.insert(0, noted)
+    except (OSError, ValueError, IndexError):
+        pass
     if sys.platform == "win32":
         import ctypes
 
         ctypes.windll.user32.AllowSetForegroundWindow(-1)   # an open copy may come to the front
-    request = urllib.request.Request("http://127.0.0.1:%d/api/desktop/show" % port, method="POST",
-                                     headers={"X-HyperOCR": "1"})
-    try:
-        with urllib.request.urlopen(request, timeout=5) as r:
-            if not json.loads(r.read()).get("ok"):
-                return False
-    except Exception:  # noqa: BLE001  (nothing there, or not HYPER-OCR's window)
-        return False
-    print("HYPER-OCR is already open: brought its window forward.", flush=True)
-    return True
+    for port in dict.fromkeys(ports):
+        request = urllib.request.Request("http://127.0.0.1:%d/api/desktop/show" % port, method="POST",
+                                         headers={"X-HyperOCR": "1"})
+        try:
+            with urllib.request.urlopen(request, timeout=5) as r:
+                if json.loads(r.read()).get("ok"):
+                    print("HYPER-OCR is already open: brought its window forward.", flush=True)
+                    return True
+        except Exception:  # noqa: BLE001  (nothing there, or not HYPER-OCR's window)
+            continue
+    return False
 
 
 def run() -> int:
@@ -119,6 +131,11 @@ def run() -> int:
     threading.Thread(target=server.run, name="hyperocr-server", daemon=True).start()
     url = "http://127.0.0.1:%d/" % port
     print("HYPER-OCR %s (desktop) at %s" % (__version__, url), flush=True)
+    try:
+        _address_file().parent.mkdir(parents=True, exist_ok=True)
+        _address_file().write_text("%d %d\n" % (port, os.getpid()), encoding="ascii")
+    except OSError:
+        pass
 
     shown: dict = {}
 
@@ -157,6 +174,11 @@ def run() -> int:
     finally:
         server.close()
         jobs.close()
+        try:
+            if _address_file().read_text(encoding="ascii").split()[1] == str(os.getpid()):
+                _address_file().unlink()
+        except (OSError, IndexError):
+            pass
     return 0
 
 
@@ -200,8 +222,9 @@ def open_window(url: str, jobs, shown: dict) -> bool:
     print("Window: Microsoft Edge WebView2.", flush=True)
     webview.settings["ALLOW_DOWNLOADS"] = True                 # Download buttons ask where to save
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True  # GitHub and licence links
+    width, height = window_size(webview)
     window = webview.create_window(
-        "HYPER-OCR", url, width=1120, height=860, min_size=(420, 560),
+        "HYPER-OCR", url, width=width, height=height, min_size=(MIN_SIZE[0], MIN_SIZE[1]),
         background_color="#F2F2F7", text_select=True, zoomable=True,
     )
     shown["window"] = window
@@ -215,6 +238,25 @@ def open_window(url: str, jobs, shown: dict) -> bool:
         log.exception("the window could not be shown")
         return False
     return True
+
+
+SIZE = (1120, 860)          # the window's size where the screen has room
+MIN_SIZE = (420, 560)
+
+
+def window_size(webview) -> tuple[int, int]:
+    """SIZE, or smaller to fit the screen's working area (above the taskbar) with a margin: on a
+    1366 x 768 laptop, and on GitHub's 1024 x 768 test machine, 860 was taller than the screen."""
+    width, height = SIZE
+    try:
+        screen = webview.screens[0]
+        area = screen.frame
+        free_w = int(getattr(area, "Width", screen.width))
+        free_h = int(getattr(area, "Height", screen.height))
+        width, height = min(width, free_w - 40), min(height, free_h - 40)
+    except Exception:  # noqa: BLE001  (no screen information: the usual size)
+        pass
+    return max(width, MIN_SIZE[0]), max(height, MIN_SIZE[1])
 
 
 def may_close(window, jobs) -> bool:

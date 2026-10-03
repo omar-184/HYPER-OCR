@@ -157,6 +157,16 @@ def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
 
     module.start = start
     monkeypatch.setitem(sys.modules, "webview", module)
+    # Something else holds the usual address, so the open copy runs on another: the second start
+    # must find it there all the same (on GitHub's Linux runner it once had to).
+    import socket
+
+    taken = socket.socket()
+    try:
+        taken.bind(("127.0.0.1", desktop.PORT))
+        taken.listen(1)
+    except OSError:
+        pass                                            # already taken by something else: same test
     first = threading.Thread(target=desktop.main, args=([],), daemon=True)
     first.start()
     assert started.wait(30)
@@ -164,9 +174,11 @@ def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
         assert desktop.main([]) == 0                    # the second start ends at once...
         assert len(windows) == 1                        # ...without a window of its own
         assert windows[0].calls == ["restore", "show"]  # and the first one came forward
+        assert "127.0.0.1:%d/" % desktop.PORT not in windows[0].url
     finally:
         release.set()
         first.join(30)
+        taken.close()
 
 
 def test_the_windowed_app_keeps_a_log_across_starts(monkeypatch, tmp_path):
@@ -199,3 +211,15 @@ def test_the_log_says_when_the_window_shows_the_interface(tmp_path, capsys):
     client.get("/api/system", headers=edge)
     client.get("/api/system", headers=edge)
     assert capsys.readouterr().out.count("The window shows the interface.") == 1
+
+
+def test_the_window_fits_a_small_screen():
+    """On a 1366 x 768 laptop (728 above the taskbar) the window must not be taller than the screen."""
+    def screens(width, height, free_height):
+        return types.SimpleNamespace(screens=[types.SimpleNamespace(
+            width=width, height=height, frame=types.SimpleNamespace(Width=width, Height=free_height))])
+
+    assert desktop.window_size(screens(1920, 1080, 1040)) == desktop.SIZE
+    assert desktop.window_size(screens(1366, 768, 728)) == (1120, 688)
+    assert desktop.window_size(screens(1024, 768, 728)) == (984, 688)
+    assert desktop.window_size(types.SimpleNamespace()) == desktop.SIZE         # no screen information
