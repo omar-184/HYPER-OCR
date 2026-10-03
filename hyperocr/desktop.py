@@ -47,6 +47,8 @@ log = logging.getLogger("hyperocr.desktop")
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    if not argv and bring_forward_running_copy():
+        return 0                       # already open: nothing to log, and the open copy's log stays
     _keep_a_log()
     if argv[:1] == ["--update"]:
         from .update import main as update_main
@@ -57,15 +59,21 @@ def main(argv: list[str] | None = None) -> int:
     return run()
 
 
+LOG_LIMIT = 1_000_000      # bytes: the log starts over once it is this long
+
+
 def _keep_a_log() -> None:
-    """A windowed app has no console: what would be printed goes to a log beside its settings
-    (replaced at each start). It holds errors and progress, never the text of documents."""
+    """A windowed app has no console: what would be printed goes to a log beside its settings,
+    one line per start and its errors, never the text of documents. It starts over at 1 MB."""
     if sys.stdout is not None and sys.stderr is not None:
         return
     try:
         folder = user_data()
         folder.mkdir(parents=True, exist_ok=True)
-        stream = open(folder / "hyperocr.log", "w", encoding="utf-8", buffering=1)  # noqa: SIM115
+        path = folder / "hyperocr.log"
+        mode = "w" if path.is_file() and path.stat().st_size > LOG_LIMIT else "a"
+        stream = open(path, mode, encoding="utf-8", buffering=1)  # noqa: SIM115
+        stream.write("--- %s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), " ".join(sys.argv[1:]) or "start"))
     except OSError:
         stream = open(os.devnull, "w", encoding="utf-8")  # noqa: SIM115
     sys.stdout = sys.stdout or stream
@@ -94,8 +102,6 @@ def bring_forward_running_copy(port: int = PORT) -> bool:
 
 
 def run() -> int:
-    if bring_forward_running_copy():
-        return 0
     from .offline import lock_down
 
     lock_down()  # from here on, this process can only talk to this computer

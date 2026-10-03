@@ -167,3 +167,19 @@ def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
     finally:
         release.set()
         first.join(30)
+
+
+def test_the_windowed_app_keeps_a_log_across_starts(monkeypatch, tmp_path):
+    """A window app has no console: its output goes to a log, which a later start adds to rather
+    than replaces (a second start used to wipe the open copy's log)."""
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))
+    for run in ("first", "second"):
+        monkeypatch.setattr(sys, "stdout", None)
+        monkeypatch.setattr(sys, "stderr", None)
+        desktop._keep_a_log()
+        print("this is the %s start" % run)
+        sys.stdout.close()
+    log = next((tmp_path / "data").rglob("hyperocr.log")).read_text(encoding="utf-8")
+    assert "this is the first start" in log and "this is the second start" in log
+    assert log.count("--- ") == 2

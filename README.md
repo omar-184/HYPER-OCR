@@ -217,7 +217,7 @@ If you installed HYPER-OCR from the zip before version 1.2.0, its `tessdata` fol
 | An update failed | The previous version was restored from `.backup/`. Try again, or run `update-windows.bat` / `./update.sh` to see the details. |
 | The page didn't come back after an update | Close the black window and start the app again. |
 | The desktop app opens in the browser, with a message box | Its window needs the Microsoft Edge WebView2 Runtime; install it from <https://developer.microsoft.com/microsoft-edge/webview2/>. Until then it works in the browser while the message stays open. |
-| The desktop app shows an error, or won't start | Its log is `%LOCALAPPDATA%\HYPER-OCR\hyperocr.log` (errors and progress only, never document text), replaced each time it starts. |
+| The desktop app shows an error, or won't start | Its log is `%LOCALAPPDATA%\HYPER-OCR\hyperocr.log`: a line per start, which window it opened, and errors; never document text. It starts over once it reaches 1 MB. |
 
 ## For developers
 

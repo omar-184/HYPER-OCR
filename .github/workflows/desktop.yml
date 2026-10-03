@@ -104,7 +104,10 @@ jobs:
               $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
               $g = [System.Drawing.Graphics]::FromImage($bmp)
               $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
-              $bmp.Save((Join-Path $shots "$name.png")); $g.Dispose(); $bmp.Dispose()
+              $bmp.Save((Join-Path $shots "$name.png"))
+              $small = New-Object System.Drawing.Bitmap $bmp, ([int]($b.Width * 0.6)), ([int]($b.Height * 0.6))
+              $small.Save((Join-Path $shots "$name.jpg"), [System.Drawing.Imaging.ImageFormat]::Jpeg)
+              $small.Dispose(); $g.Dispose(); $bmp.Dispose()
             } catch { "No screenshot ($name): $_" }
           }
           Start-Sleep 6
@@ -120,6 +123,16 @@ jobs:
           "--- the app's log ---"
           Get-Content "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -ErrorAction SilentlyContinue
           "---"
+          # What is on the screen, read by the app's own Tesseract, and the screen itself (as text).
+          "--- text on the screen ---"
+          & "$dir\tesseract\tesseract.exe" (Join-Path $shots "1-opened.png") stdout --tessdata-dir "$dir\tessdata" -l eng 2>$null |
+            Where-Object { $_.Trim() } | Select-Object -First 30
+          "--- screen 1-opened.jpg, base64 ---"
+          if (Test-Path (Join-Path $shots "1-opened.jpg")) {
+            $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $shots "1-opened.jpg")))
+            for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
+          }
+          "--- end ---"
           if (-not (Select-String -Path "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -Pattern "Window: Microsoft Edge WebView2" -Quiet)) { throw "the app did not open its own window" }
           Stop-Process -Name HYPER-OCR -Force -ErrorAction SilentlyContinue
           Start-Sleep 2
