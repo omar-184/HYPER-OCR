@@ -139,7 +139,7 @@ jobs:
             "--- screen $name.jpg, base64 ---"
             if (Test-Path (Join-Path $shots "$name.jpg")) {
               $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Join-Path $shots "$name.jpg")))
-              for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:$name:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
+              for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:${name}:" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
             }
           }
           "--- end ---"
