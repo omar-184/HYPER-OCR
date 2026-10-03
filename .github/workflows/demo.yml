@@ -1,0 +1,48 @@
+# Install and use the Windows desktop app as a person would, keeping a screenshot of every step
+# (Actions -> Desktop app demo -> Run workflow). Screenshots: the "demo-screenshots" artifact.
+name: Desktop app demo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  demo:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Packages
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install --no-deps "markitdown>=0.1.2,<0.2"
+          python -m pip install -r requirements-desktop.txt
+      - name: Inno Setup
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Build the installer
+        run: python tools/build_desktop.py app --installer
+      - name: Install HYPER-OCR and convert a scan with it, as a person would
+        run: |
+          $setup = (Get-ChildItem dist\HYPER-OCR-Setup-*.exe | Select-Object -First 1).FullName
+          $shots = Join-Path $env:RUNNER_TEMP "demo"
+          pwsh -NoProfile -File tools/demo-windows.ps1 -Setup $setup -Scan tests\fixtures\scanned_english.pdf -Out $shots
+      - name: Screenshots in the log (small)
+        if: always()
+        run: |
+          foreach ($f in Get-ChildItem (Join-Path $env:RUNNER_TEMP "demo\*.jpg") | Sort-Object Name) {
+            $b64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes($f.FullName))
+            for ($i = 0; $i -lt $b64.Length; $i += 4000) { "B64:$($f.BaseName):" + $b64.Substring($i, [Math]::Min(4000, $b64.Length - $i)) }
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: demo-screenshots
+          path: ${{ runner.temp }}/demo/*.png
+          retention-days: 30
