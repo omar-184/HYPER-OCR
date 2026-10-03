@@ -48,7 +48,7 @@ You need the internet **once**, during setup. After that the app never goes onli
 2. Open it. It installs HYPER-OCR for you alone, in `%LOCALAPPDATA%\Programs\HYPER-OCR`: no administrator rights, nothing else to download. It brings its own Python, Tesseract 5.4.0 (the version the tests pass on) and the English and Arabic language files.
 
    The installer isn't code-signed yet, so Windows may show **"Windows protected your PC"**: click **More info**, then **Run anyway**.
-3. Open **HYPER-OCR** from the Start menu (or the desktop icon, if you ticked it). It opens in its own window; close the window to stop it. If a conversion is running, it asks first.
+3. Open **HYPER-OCR** from the Start menu (or the desktop icon, if you ticked it). It opens in its own window; close the window to stop it. If a conversion is running, it asks first. Opening it again while it is open brings its window forward: one copy runs at a time.
 
 The window is Microsoft Edge WebView2, part of Windows 10 and 11. On the rare computer without it, HYPER-OCR opens in your browser instead, and a small message keeps it running until you click **OK**; installing the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) gives it its window.
 
@@ -213,6 +213,7 @@ If you installed HYPER-OCR from the zip before version 1.2.0, its `tessdata` fol
 | Out of memory on a huge PDF | Choose *Fast · 200 dpi*, or split the PDF. |
 | An iPhone photo shows a plain icon instead of a preview | Normal: most browsers can't show HEIC. HYPER-OCR still reads it. |
 | "Couldn't reach GitHub" when updating | Check the internet connection and try again. Nothing was changed. |
+| "GitHub is answering too many update checks from this network" | GitHub answers 60 checks an hour from one internet address, and the computers of a hospital or office often share one. Try again later; nothing was changed. |
 | An update failed | The previous version was restored from `.backup/`. Try again, or run `update-windows.bat` / `./update.sh` to see the details. |
 | The page didn't come back after an update | Close the black window and start the app again. |
 | The desktop app opens in the browser, with a message box | Its window needs the Microsoft Edge WebView2 Runtime; install it from <https://developer.microsoft.com/microsoft-edge/webview2/>. Until then it works in the browser while the message stays open. |

@@ -8,6 +8,7 @@ The local server runs inside the app, on 127.0.0.1 only, as in the browser versi
 and stops when the window closes; this run's temporary files go with it. The window
 is Microsoft Edge WebView2, which Windows 10 and 11 include. Where it is missing, the
 app opens in the default browser instead, and a small message keeps it running.
+Opening HYPER-OCR while it is already open brings its window forward: one copy runs.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ import os
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 
 from . import __version__
@@ -71,7 +73,29 @@ def _keep_a_log() -> None:
     logging.basicConfig(stream=stream, level=logging.WARNING, format="%(asctime)s %(name)s: %(message)s")
 
 
+def bring_forward_running_copy(port: int = PORT) -> bool:
+    """Is HYPER-OCR already open? Then ask it to bring its window forward; this second start
+    ends there. False when nothing answers at its address, or something else does (such as
+    the browser version, which has no window to show): then this one starts on another."""
+    if sys.platform == "win32":
+        import ctypes
+
+        ctypes.windll.user32.AllowSetForegroundWindow(-1)   # an open copy may come to the front
+    request = urllib.request.Request("http://127.0.0.1:%d/api/desktop/show" % port, method="POST",
+                                     headers={"X-HyperOCR": "1"})
+    try:
+        with urllib.request.urlopen(request, timeout=5) as r:
+            if not json.loads(r.read()).get("ok"):
+                return False
+    except Exception:  # noqa: BLE001  (nothing there, or not HYPER-OCR's window)
+        return False
+    print("HYPER-OCR is already open: brought its window forward.", flush=True)
+    return True
+
+
 def run() -> int:
+    if bring_forward_running_copy():
+        return 0
     from .offline import lock_down
 
     lock_down()  # from here on, this process can only talk to this computer
@@ -104,9 +128,24 @@ def run() -> int:
                 os._exit(0)
         threading.Thread(target=close, daemon=True).start()
 
+    def show() -> None:
+        """Another start of HYPER-OCR asked for this window: un-minimise it and bring it forward."""
+        window = shown.get("window")
+        if window is None:
+            return
+        try:
+            window.restore()
+            window.show()
+            window.on_top = True       # raise it above other windows, then let it behave normally
+            window.on_top = False
+        except Exception:  # noqa: BLE001
+            log.exception("could not bring the window forward")
+
     app.extensions["hyperocr.restart"] = close_for_update
+    app.extensions["hyperocr.show"] = show
     try:
         if not open_window(url, jobs, shown):
+            print("No window (WebView2 is missing): opened in the browser instead.", flush=True)
             open_in_browser(url)
     finally:
         server.close()
@@ -137,6 +176,7 @@ def open_window(url: str, jobs, shown: dict) -> bool:
         return False
     if not edge_available():
         return False
+    print("Window: Microsoft Edge WebView2.", flush=True)
     webview.settings["ALLOW_DOWNLOADS"] = True                 # Download buttons ask where to save
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True  # GitHub and licence links
     window = webview.create_window(

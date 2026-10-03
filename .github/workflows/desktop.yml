@@ -91,10 +91,36 @@ jobs:
           foreach ($i in 1..60) {
             try { $r = Invoke-RestMethod http://127.0.0.1:8766/api/system -TimeoutSec 2; $ok = $true; break } catch { Start-Sleep 1 }
           }
-          Get-Content "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -ErrorAction SilentlyContinue
-          if (-not $ok) { throw "the installed app did not start" }
+          if (-not $ok) { Get-Content "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -ErrorAction SilentlyContinue; throw "the installed app did not start" }
           "Installed app: version $($r.version), desktop $($r.desktop), languages $($r.languages -join ', ')"
           if (-not $r.desktop) { throw "not running as the desktop app" }
+          # What a person would see: screenshots of the screen (kept as an artifact).
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $shots = Join-Path $env:RUNNER_TEMP "screens"
+          New-Item -ItemType Directory -Force $shots | Out-Null
+          function Shot($name) {
+            try {
+              $b = [System.Windows.Forms.SystemInformation]::VirtualScreen
+              $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+              $g = [System.Drawing.Graphics]::FromImage($bmp)
+              $g.CopyFromScreen($b.Left, $b.Top, 0, 0, $bmp.Size)
+              $bmp.Save((Join-Path $shots "$name.png")); $g.Dispose(); $bmp.Dispose()
+            } catch { "No screenshot ($name): $_" }
+          }
+          Start-Sleep 6
+          Shot "1-opened"
+          # Opening it again brings the open window forward; no second copy starts.
+          $again = Start-Process "$dir\HYPER-OCR.exe" -PassThru
+          if (-not $again.WaitForExit(30000)) { throw "the second start did not end" }
+          Start-Sleep 2
+          Shot "2-opened-again"
+          $copies = @(Get-Process -Name HYPER-OCR -ErrorAction SilentlyContinue).Count
+          "HYPER-OCR processes after opening it twice: $copies"
+          if ($copies -ne 1) { throw "opening it again started another copy ($copies)" }
+          "--- the app's log ---"
+          Get-Content "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -ErrorAction SilentlyContinue
+          "---"
+          if (-not (Select-String -Path "$env:LOCALAPPDATA\HYPER-OCR\hyperocr.log" -Pattern "Window: Microsoft Edge WebView2" -Quiet)) { throw "the app did not open its own window" }
           Stop-Process -Name HYPER-OCR -Force -ErrorAction SilentlyContinue
           Start-Sleep 2
           $out = Join-Path $env:RUNNER_TEMP "installed-self-test"
@@ -114,6 +140,13 @@ jobs:
           $u = Start-Process "$dir\unins000.exe" -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           Start-Sleep 3
           if (Test-Path "$dir\HYPER-OCR.exe") { throw "uninstall left the app behind" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-screenshots
+          path: ${{ runner.temp }}/screens/*.png
+          if-no-files-found: warn
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: HYPER-OCR-Setup

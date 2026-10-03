@@ -60,10 +60,19 @@ class FakeGitHub:
         self.app = app
         self.release = None          # None: nothing published yet
         self.files = {}
+        self.rate_limited = False    # True: answer as GitHub does past 60 calls an hour
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
+                if fake.rate_limited:
+                    body = b'{"message": "API rate limit exceeded"}'
+                    self.send_response(403)
+                    self.send_header("X-RateLimit-Remaining", "0")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
                 if self.path == "/repos/omar-184/HYPER-OCR/releases/latest" and fake.release:
                     body, kind = json.dumps(fake.release).encode(), "application/json"
                 else:
@@ -232,3 +241,19 @@ def test_a_release_without_the_installer_is_not_offered_to_the_desktop_app(fake_
     app, env, github = fake_github                         # the zip only
     out, events = _run(app, dict(env, HYPEROCR_UPDATE_KIND="installer"), "--check")
     assert out.returncode == 1 and "HYPER-OCR-Setup-9.9.0.exe" in events[-1]["error"]
+
+
+def test_githubs_rate_limit_gets_its_own_message(fake_github, monkeypatch, tmp_path):
+    """Computers behind one hospital connection share GitHub's 60 checks an hour: the app says
+    so, instead of blaming the internet connection."""
+    app, env, github = fake_github
+    github.rate_limited = True
+    out, events = _run(app, env, "--check")
+    assert out.returncode == 1 and events[-1]["kind"] == "rateLimited" and "rate limit" in events[-1]["error"]
+    for key in ("HYPEROCR_UPDATE_API", "HYPEROCR_APP_ROOT", "NO_PROXY", "no_proxy"):
+        monkeypatch.setenv(key, env[key])
+    from hyperocr.jobs import JobManager
+    from hyperocr.server import create_app
+
+    r = create_app(JobManager(tmp_path / "jobs")).test_client().post("/api/update/check", headers={"X-HyperOCR": "1"})
+    assert r.status_code == 429 and r.get_json()["error"] == "updateRateLimited"

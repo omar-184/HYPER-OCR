@@ -1168,12 +1168,12 @@
     try {
       const resp = await fetch('/api/update/check', { method: 'POST', headers: { 'X-HyperOCR': '1' } });
       const data = await resp.json();
-      if (!resp.ok) throw new Error(data.detail || data.error);
+      if (!resp.ok) throw new Error(data.error || data.detail);
       upd.latest = data.latest;
       upd.phase = data.available ? 'available' : 'current';
-    } catch {
+    } catch (err) {
       upd.phase = 'failed';
-      upd.error = t('updFailed');
+      upd.error = t(err && err.message === 'updateRateLimited' ? 'updRateLimited' : 'updFailed');
     }
     renderUpdate();
   });

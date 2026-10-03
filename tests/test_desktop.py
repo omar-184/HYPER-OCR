@@ -124,3 +124,46 @@ def test_self_test_converts_a_file_and_reports_it(tmp_path):
     report = json.loads((tmp_path / "self-test.json").read_text(encoding="utf-8"))
     assert report["available"] and report["pages"] == 2
     assert report["markdown"].startswith("# Effect of Early Mobilisation After Surgery")
+
+
+def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
+    """One copy runs: a second start asks the open one to show its window, and ends."""
+    import threading
+
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))
+    monkeypatch.setattr("hyperocr.offline.lock_down", lambda: None)
+    monkeypatch.setattr(desktop, "edge_available", lambda: True)
+    started, release, windows = threading.Event(), threading.Event(), []
+
+    class Window(FakeWindow):
+        def __init__(self, *args, **options):
+            super().__init__(*args, **options)
+            self.calls = []
+
+        def restore(self):
+            self.calls.append("restore")
+
+        def show(self):
+            self.calls.append("show")
+
+    module = types.ModuleType("webview")
+    module.settings = {}
+    module.create_window = lambda title, url, **options: windows.append(Window(title, url, **options)) or windows[-1]
+
+    def start(**options):
+        started.set()
+        release.wait(30)
+
+    module.start = start
+    monkeypatch.setitem(sys.modules, "webview", module)
+    first = threading.Thread(target=desktop.main, args=([],), daemon=True)
+    first.start()
+    assert started.wait(30)
+    try:
+        assert desktop.main([]) == 0                    # the second start ends at once...
+        assert len(windows) == 1                        # ...without a window of its own
+        assert windows[0].calls == ["restore", "show"]  # and the first one came forward
+    finally:
+        release.set()
+        first.join(30)

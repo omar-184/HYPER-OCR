@@ -172,6 +172,8 @@ def create_app(jobs: JobManager | None = None) -> Flask:
             data = json.loads(lines[-1]) if lines else {}
         except (subprocess.TimeoutExpired, ValueError, OSError) as exc:
             return jsonify(error="updateNetwork", detail=str(exc)), 502
+        if data.get("kind") == "rateLimited":
+            return jsonify(error="updateRateLimited", detail=data.get("error", "")), 429
         if done.returncode != 0 or "available" not in data:
             return jsonify(error="updateNetwork", detail=data.get("error", done.stderr[-300:])), 502
         return jsonify(data)
@@ -209,6 +211,15 @@ def create_app(jobs: JobManager | None = None) -> Flask:
             update_state["state"] = "done"
         else:
             update_state["state"] = "failed"
+
+    @app.post("/api/desktop/show")
+    def api_desktop_show():
+        """The desktop app, opened a second time, asks the open copy to bring its window forward."""
+        show = app.extensions.get("hyperocr.show")
+        if show is None:
+            abort(404)
+        show()
+        return jsonify(ok=True)
 
     @app.get("/api/update/status")
     def api_update_status():

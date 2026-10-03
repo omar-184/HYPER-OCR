@@ -175,6 +175,10 @@
     updAvailable: { en: 'Version {latest} is available', ar: 'الإصدار {latest} متاح' },
     updBusy: { en: 'Wait for the conversion to finish, then update.', ar: 'انتظر حتى ينتهي التحويل ثم حدّث.' },
     updFailed: { en: 'Couldn’t reach GitHub. Check the internet connection and try again.', ar: 'تعذر الوصول إلى GitHub. تحقق من اتصال الإنترنت وحاول مرة أخرى.' },
+    updRateLimited: {
+      en: 'GitHub is answering too many update checks from this network for now. Try again in an hour.',
+      ar: 'يتلقى GitHub الآن عدداً كبيراً من طلبات التحقق من التحديثات من هذه الشبكة. حاول مرة أخرى بعد ساعة.',
+    },
     updFailedInstall: { en: 'The update didn’t finish ({detail}). Nothing was changed.', ar: 'لم يكتمل التحديث ({detail}). لم يتغير شيء.' },
     step_downloading: { en: 'Downloading version {v}', ar: 'تنزيل الإصدار {v}' },
     step_installing: { en: 'Installing', ar: 'التثبيت' },

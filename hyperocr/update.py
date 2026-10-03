@@ -70,6 +70,9 @@ def _get(url: str, accept: str = "application/vnd.github+json") -> bytes:
     except urllib.error.HTTPError as exc:
         if exc.code == 404:
             raise NotFound(url) from exc
+        if exc.code in (403, 429) and (exc.headers or {}).get("X-RateLimit-Remaining") == "0":
+            raise RateLimited("rate limit: GitHub answers 60 update checks an hour from one network; "
+                              "try again later") from exc
         raise UpdateError("network: %s" % exc) from exc
     except Exception as exc:
         raise UpdateError("network: %s" % exc) from exc
@@ -77,6 +80,11 @@ def _get(url: str, accept: str = "application/vnd.github+json") -> bytes:
 
 class NotFound(UpdateError):
     pass
+
+
+class RateLimited(UpdateError):
+    """GitHub limits checks without an account to 60 an hour per address; computers behind
+    one hospital or office connection share that address."""
 
 
 def parse_version(text: str) -> tuple[int, ...]:
@@ -366,7 +374,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except UpdateError as exc:
         if args.json:
-            print(json.dumps({"step": "failed", "error": str(exc)}), flush=True)
+            kind = "rateLimited" if isinstance(exc, RateLimited) else "failed"
+            print(json.dumps({"step": "failed", "error": str(exc), "kind": kind}), flush=True)
         else:
             print("The update did not finish: %s" % exc)
         return 1

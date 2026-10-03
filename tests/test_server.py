@@ -113,3 +113,8 @@ def test_default_languages_follow_the_interface_language(client):
     if "eng" in system["languages"]:
         assert system["defaults"]["languages"] == ["eng"]
         assert system["defaults"]["languagesByUi"]["en"] == ["eng"]
+
+
+def test_only_the_desktop_app_has_a_window_to_bring_forward(client):
+    assert client.post("/api/desktop/show").status_code == 403                 # the app's header, as for any write
+    assert client.post("/api/desktop/show", headers=HEADERS).status_code == 404  # the browser version: no window
