@@ -222,9 +222,9 @@ def open_window(url: str, jobs, shown: dict) -> bool:
     print("Window: Microsoft Edge WebView2.", flush=True)
     webview.settings["ALLOW_DOWNLOADS"] = True                 # Download buttons ask where to save
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True  # GitHub and licence links
-    width, height = window_size(webview)
+    width, height, x, y = window_place(webview)
     window = webview.create_window(
-        "HYPER-OCR", url, width=width, height=height, min_size=(MIN_SIZE[0], MIN_SIZE[1]),
+        "HYPER-OCR", url, width=width, height=height, x=x, y=y, min_size=(MIN_SIZE[0], MIN_SIZE[1]),
         background_color="#F2F2F7", text_select=True, zoomable=True,
     )
     shown["window"] = window
@@ -244,19 +244,22 @@ SIZE = (1120, 860)          # the window's size where the screen has room
 MIN_SIZE = (420, 560)
 
 
-def window_size(webview) -> tuple[int, int]:
-    """SIZE, or smaller to fit the screen's working area (above the taskbar) with a margin: on a
-    1366 x 768 laptop, and on GitHub's 1024 x 768 test machine, 860 was taller than the screen."""
+def window_place(webview) -> tuple[int, int, int | None, int | None]:
+    """Width, height, left and top: SIZE, or smaller to fit the screen's working area (above the
+    taskbar) with a margin, centred in it. On a 1366 x 768 laptop, and on GitHub's 1024 x 768 test
+    machine, 860 was taller than the screen, and the window opened off-centre, into the taskbar."""
     width, height = SIZE
     try:
         screen = webview.screens[0]
         area = screen.frame
+        left, top = int(getattr(area, "X", screen.x)), int(getattr(area, "Y", screen.y))
         free_w = int(getattr(area, "Width", screen.width))
         free_h = int(getattr(area, "Height", screen.height))
-        width, height = min(width, free_w - 40), min(height, free_h - 40)
-    except Exception:  # noqa: BLE001  (no screen information: the usual size)
-        pass
-    return max(width, MIN_SIZE[0]), max(height, MIN_SIZE[1])
+    except Exception:  # noqa: BLE001  (no screen information: the usual size, where the system puts it)
+        return width, height, None, None
+    width = max(min(width, free_w - 40), MIN_SIZE[0])
+    height = max(min(height, free_h - 40), MIN_SIZE[1])
+    return width, height, left + max(0, (free_w - width) // 2), top + max(0, (free_h - height) // 2)
 
 
 def may_close(window, jobs) -> bool:

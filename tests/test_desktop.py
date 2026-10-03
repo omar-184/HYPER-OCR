@@ -218,12 +218,14 @@ def test_the_log_says_when_the_window_shows_the_interface(tmp_path, capsys):
 
 
 def test_the_window_fits_a_small_screen():
-    """On a 1366 x 768 laptop (728 above the taskbar) the window must not be taller than the screen."""
+    """On a 1366 x 768 laptop (728 above the taskbar) the window must not be taller than the screen,
+    and it opens in the middle of the space above the taskbar."""
     def screens(width, height, free_height):
         return types.SimpleNamespace(screens=[types.SimpleNamespace(
-            width=width, height=height, frame=types.SimpleNamespace(Width=width, Height=free_height))])
+            x=0, y=0, width=width, height=height,
+            frame=types.SimpleNamespace(X=0, Y=0, Width=width, Height=free_height))])
 
-    assert desktop.window_size(screens(1920, 1080, 1040)) == desktop.SIZE
-    assert desktop.window_size(screens(1366, 768, 728)) == (1120, 688)
-    assert desktop.window_size(screens(1024, 768, 728)) == (984, 688)
-    assert desktop.window_size(types.SimpleNamespace()) == desktop.SIZE         # no screen information
+    assert desktop.window_place(screens(1920, 1080, 1040)) == (1120, 860, 400, 90)
+    assert desktop.window_place(screens(1366, 768, 728)) == (1120, 688, 123, 20)
+    assert desktop.window_place(screens(1024, 768, 728)) == (984, 688, 20, 20)
+    assert desktop.window_place(types.SimpleNamespace()) == (1120, 860, None, None)   # no screen information
