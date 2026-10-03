@@ -162,11 +162,14 @@ def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
     import socket
 
     taken = socket.socket()
+    if sys.platform != "win32":
+        taken.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)   # even if an earlier test just closed it
     try:
         taken.bind(("127.0.0.1", desktop.PORT))
         taken.listen(1)
+        holding = True
     except OSError:
-        pass                                            # already taken by something else: same test
+        holding = False                                 # something else holds it: the same situation
     first = threading.Thread(target=desktop.main, args=([],), daemon=True)
     first.start()
     assert started.wait(30)
@@ -174,7 +177,8 @@ def test_opening_it_again_brings_the_open_window_forward(monkeypatch, tmp_path):
         assert desktop.main([]) == 0                    # the second start ends at once...
         assert len(windows) == 1                        # ...without a window of its own
         assert windows[0].calls == ["restore", "show"]  # and the first one came forward
-        assert "127.0.0.1:%d/" % desktop.PORT not in windows[0].url
+        if holding:
+            assert "127.0.0.1:%d/" % desktop.PORT not in windows[0].url
     finally:
         release.set()
         first.join(30)
