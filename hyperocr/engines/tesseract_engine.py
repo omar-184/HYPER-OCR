@@ -76,6 +76,7 @@ OSD_MIN_CONF = 3.0         # turned pages measured 6.2-13.8; wrong guesses at 10
 # pages are read side by side, one per core: half the logical processors (the other half are
 # the same cores again), at most this many (a page being read holds about 150 MB at 300 dpi).
 MAX_PAGES_AT_ONCE = 6
+PDF_TEXT = "pdf-text"      # PageResult.engine of a page whose own text was used (no OCR)
 
 
 # The Tesseract release the tests pass on; Windows setup installs exactly this build.
@@ -233,25 +234,35 @@ class TesseractEngine(Engine):
         result.skew = angle
         return result
 
-    def _read(self, image: np.ndarray, index: int, dpi: float, options: Options) -> PageResult:
-        langs = self.usable_languages(options.languages)
+    def lay_out(self, image: np.ndarray, index: int, dpi: float, options: Options, words: list[TWord]) -> PageResult:
+        """A page whose words are already known (the PDF's own text, see pdftext.py): only its
+        layout is worked out, from the page image, as for OCR words. No OCR, no Tesseract."""
+        result = self._read(image, index, dpi, options, words)
+        result.engine = PDF_TEXT
+        return result
+
+    def _read(self, image: np.ndarray, index: int, dpi: float, options: Options,
+              known: list[TWord] | None = None) -> PageResult:
+        langs = self.usable_languages(options.languages) if known is None else []
         gray = cv.denoise(cv.to_gray(image))
         h, w = gray.shape
         ink = cv.ink_mask(gray)
         rules = cv.find_rules(ink, dpi)
         grids = cv.find_tables(rules, dpi)
         clean = cv.erase_rules(gray, rules)
-        words = self._ocr_words(clean, langs, dpi)
+        words = self._ocr_words(clean, langs, dpi) if known is None else list(known)
         result = PageResult(index, w, h, dpi, self.id)
 
         sure = [tw.box for tw in words if tw.conf >= 30]
         figures = cv.find_figures(
             ink, rules, sure, [g.box for g in grids], dpi,
-            is_text=lambda box: self._looks_like_text(clean, ink, box, langs, dpi),
+            # Known words are all the text there is: what ink is left is drawing.
+            is_text=None if known is not None else lambda box: self._looks_like_text(clean, ink, box, langs, dpi),
         )
         figures = [cv.expand_figure(f, ink, sure, dpi) for f in figures]
-        # Text Tesseract's page layout skipped (it happens to headings near tables).
-        words += self._recover_orphans(clean, ink, rules, words, [g.box for g in grids] + figures, langs, dpi)
+        if known is None:
+            # Text Tesseract's page layout skipped (it happens to headings near tables).
+            words += self._recover_orphans(clean, ink, rules, words, [g.box for g in grids] + figures, langs, dpi)
 
         # Which words belong to a table or a figure (by their centre)?
         def inside(tw: TWord, box: Box) -> bool:
@@ -277,7 +288,10 @@ class TesseractEngine(Engine):
         placed: list[Block] = [b for k, b in keyed if k[0] >= ORPHAN_BLOCK and not _continues(b, text_blocks)]
         cell_lines: list[Line] = []
         for i, g in enumerate(grids):
-            self._read_cells(clean, g, table_words[i], langs, dpi)
+            if known is None:
+                self._read_cells(clean, g, table_words[i], langs, dpi)
+            else:
+                _fill_cells(g, table_words[i])
             html, text = _table_html(g)
             if text.strip():
                 placed.append(Block(TABLE, g.box, text=text, html=html))
@@ -645,6 +659,15 @@ def _reorder_lines(words: list[TWord], line_rtl: dict, keys: set) -> list[TWord]
             seen.add(tw.key)
             out.extend(order[tw.key])
     return out
+
+
+def _fill_cells(grid: cv.TableGrid, words: list[TWord]) -> None:
+    """Each cell's text from the known words whose centres fall inside it."""
+    for c in grid.cells:
+        inside = [tw for tw in words
+                  if c.box[0] <= (tw.box[0] + tw.box[2]) / 2 <= c.box[2]
+                  and c.box[1] <= (tw.box[1] + tw.box[3]) / 2 <= c.box[3]]
+        c.text = _join_lines([" ".join(tw.text for tw in line) for line in _visual_lines(inside)])
 
 
 def _is_number(text: str) -> bool:

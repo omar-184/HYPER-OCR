@@ -10,6 +10,8 @@
     set(key, value) { try { localStorage.setItem('hocr.' + key, JSON.stringify(value)); } catch { /* storage may be blocked */ } },
   };
   const ENGINE_NAMES = { unlimited: 'Unlimited-OCR', 'unlimited-server': 'Unlimited-OCR', tesseract: 'Tesseract' };
+  const OUTPUTS = ['pdf', 'markdown', 'images', 'tables'];
+  const INFO_NOTES = ['ownText'];
   const IMAGE_EXT = /\.(jpe?g|png|tiff?|bmp|webp|gif|heic|heif)$/i;
   const STAGE_PERCENT = { uploading: 0, queued: 1, opening: 2, 'loading-model': 4, 'writing-pdf': 93, 'writing-markdown': 96, packing: 98, done: 100 };
   const phone = () => window.matchMedia('(max-width: 640px)').matches;
@@ -50,9 +52,19 @@
   }
   const listJoin = (items) => items.join(H.i18n.lang === 'ar' ? '، ' : ', ');
   // "1, 2 and 5" / "1 و2 و5"
-  function pageList(pages) {
-    const items = pages.map((n) => H.i18n.num(n));
+  function listOf(items) {
     try { return new Intl.ListFormat(H.i18n.lang, { style: 'long', type: 'conjunction' }).format(items); } catch { return listJoin(items); }
+  }
+  // Runs of three or more pages as a range: "1–3, 5 and 7–2,831", not every page of a book.
+  function pageList(pages) {
+    const items = [];
+    for (let i = 0; i < pages.length; i++) {
+      let j = i;
+      while (j + 1 < pages.length && pages[j + 1] === pages[j] + 1) j++;
+      if (j - i >= 2) { items.push('\u2068' + H.i18n.num(pages[i]) + '\u2013' + H.i18n.num(pages[j]) + '\u2069'); i = j; }
+      else items.push(H.i18n.num(pages[i]));
+    }
+    return listOf(items);
   }
 
   function formatSize(bytes) {
@@ -65,7 +77,8 @@
   function formatDuration(sec) {
     sec = Math.max(1, Math.round(sec));
     if (sec < 60) return t('seconds', { n: sec });
-    return t('minutes', { m: Math.floor(sec / 60), s: sec % 60 });
+    if (sec < 3600) return t('minutes', { m: Math.floor(sec / 60), s: sec % 60 });
+    return t('hours', { h: Math.floor(sec / 3600), m: Math.floor((sec % 3600) / 60) });
   }
 
   const live = el('div', 'sr-only');
@@ -261,6 +274,8 @@
     const savedDpi = String(store.get('dpi') || '');
     if (['200', '300', '400'].includes(savedDpi) && !$('dpi').dataset.touched) $('dpi').value = savedDpi;
     if (store.get('furniture') === false) $('opt-furniture').checked = false;
+    if (store.get('ownText') === false) $('opt-own-text').checked = false;
+    renderOutputs();
     $('about-version').textContent = t('version', { v: sys.version });
     renderEngineStatus();
     renderLanguages();
@@ -344,6 +359,38 @@
   });
   $('dpi').addEventListener('change', () => { $('dpi').dataset.touched = '1'; store.set('dpi', Number($('dpi').value)); });
   $('opt-furniture').addEventListener('change', () => store.set('furniture', $('opt-furniture').checked));
+  $('opt-own-text').addEventListener('change', () => store.set('ownText', $('opt-own-text').checked));
+
+  // ================================================================ outputs
+
+  const outputSwitches = () => [...document.querySelectorAll('#outputs [data-output]')];
+
+  function currentOutputs() {
+    const saved = store.get('outputs');
+    const valid = Array.isArray(saved) ? OUTPUTS.filter((o) => saved.includes(o)) : [];
+    return valid.length ? valid : OUTPUTS.slice();
+  }
+
+  function renderOutputs() {
+    const chosen = currentOutputs();
+    for (const sw of outputSwitches()) sw.checked = chosen.includes(sw.dataset.output);
+    $('output-footer').textContent = t('outputFooter', { list: listOf(chosen.map((o) => t('out_' + o))) });
+    $('furniture-group').hidden = !chosen.includes('markdown');     // it only shapes the Markdown
+  }
+
+  for (const sw of outputSwitches()) {
+    sw.addEventListener('change', () => {
+      const chosen = outputSwitches().filter((x) => x.checked).map((x) => x.dataset.output);
+      if (!chosen.length) {                        // the last one stays on
+        sw.checked = true;
+        $('output-footer').textContent = t('outputOne');
+        announce(t('outputOne'));
+        return;
+      }
+      store.set('outputs', chosen);
+      renderOutputs();
+    });
+  }
 
   function engineUsable() {
     const sys = state.system;
@@ -636,7 +683,7 @@
     if (!state.files.length || state.busy) return;
     const options = {
       engine: $('engine').value, languages: currentLanguages(), dpi: Number($('dpi').value),
-      skip_furniture: $('opt-furniture').checked,
+      skip_furniture: $('opt-furniture').checked, own_text: $('opt-own-text').checked, outputs: currentOutputs(),
       ui_lang: H.i18n.lang, mode: state.mode,
     };
     const form = new FormData();
@@ -834,11 +881,17 @@
     const card = $('sec-results').querySelector('.done-card');
     card.classList.toggle('animate', animate && !reduced());
     const files = H.i18n.plural('files', job.files);
-    $('done-sub').textContent = t('doneSub', { files, engine: isolate(ENGINE_NAMES[r.engine] || r.engine), time: formatDuration(r.seconds) });
+    const time = formatDuration(r.seconds);
+    $('done-sub').textContent = r.engine === 'pdf-text' ? t('doneSubOwnText', { files, time })
+      : t('doneSub', { files, engine: isolate(ENGINE_NAMES[r.engine] || r.engine), time });
 
+    const made = r.outputs || OUTPUTS;
     const stats = $('stats');
     stats.replaceChildren();
-    [['pages', 'statPages'], ['words', 'statWords'], ['images', 'statImages'], ['tables', 'statTables']].forEach(([k, label], i) => {
+    const tiles = [['pages', 'statPages'], ['words', 'statWords'], ['images', 'statImages'], ['tables', 'statTables']]
+      .filter(([k]) => !OUTPUTS.includes(k) || made.includes(k));          // pictures and tables only when made
+    stats.style.setProperty('--n', String(tiles.length));
+    tiles.forEach(([k, label], i) => {
       const box = el('div', 'stat' + (animate ? ' reveal-item' : ''));
       box.style.setProperty('--i', String(i + 1));
       const n = el('div', 'stat-num', '0');
@@ -862,11 +915,12 @@
     for (const d of r.documents) for (const w of d.warnings) notes.push([w, r.documents.length > 1 ? d.name : '']);
     for (const [w, name] of notes) {
       if (!H.i18n.has('w_' + w.key)) continue;
-      const p = el('p', 'notice warn');
+      const note = INFO_NOTES.includes(w.key);         // good news, not a warning
+      const p = el('p', 'notice ' + (note ? 'info' : 'warn'));
       const pages = w.pages || [];
       const key = 'w_' + w.key + (pages.length === 1 && H.i18n.has('w_' + w.key + '_one') ? '_one' : '');
       const text = (name ? isolate(name) + ': ' : '') + t(key, { pages: pageList(pages) });
-      p.append(icon('warn'), el('span', '', text));
+      p.append(icon(note ? 'info' : 'warn'), el('span', '', text));
       warnings.append(p);
     }
 
@@ -912,10 +966,25 @@
     const inner = el('div', 'doc-body-inner');
     body.append(inner);
 
+    const made = d.outputs || OUTPUTS;
     const files = el('div', 'group');
-    files.append(downloadRow(job, d.pdf, t('pdfRow'), 'tile-red', 'doc'), downloadRow(job, d.markdown_file, t('mdRow'), 'tile-gray', 'text'));
-    inner.append(files);
+    if (d.pdf) files.append(downloadRow(job, d.pdf, t('pdfRow'), 'tile-red', 'doc'));
+    if (d.markdown_file) files.append(downloadRow(job, d.markdown_file, t('mdRow'), 'tile-gray', 'text'));
+    if (files.children.length) inner.append(files);
 
+    if (made.includes('images')) appendImages(job, d, inner);
+    if (made.includes('tables')) appendTables(job, d, inner);
+    if (d.markdown_file) {
+      inner.append(el('h3', 'sub-header', t('resMarkdown')));
+      const md = el('div', 'group');
+      md.append(el('pre', 'md-preview', d.markdown));
+      inner.append(md);
+      if (d.markdown_truncated) inner.append(el('p', 'section-footer', t('mdTruncated')));
+    }
+    return collapsible(d, index, many, wrap, body, inner, made);
+  }
+
+  function appendImages(job, d, inner) {
     inner.append(el('h3', 'sub-header', t('resImages')));
     const pics = el('div', 'group');
     if (d.images.length) {
@@ -939,7 +1008,9 @@
       pics.append(el('p', 'empty-note', t('noImages')));
     }
     inner.append(pics);
+  }
 
+  function appendTables(job, d, inner) {
     inner.append(el('h3', 'sub-header', t('resTables')));
     const tables = el('div', 'group');
     if (d.tables.length) {
@@ -952,13 +1023,9 @@
       tables.append(el('p', 'empty-note', t('noTables')));
     }
     inner.append(tables);
+  }
 
-    inner.append(el('h3', 'sub-header', t('resMarkdown')));
-    const md = el('div', 'group');
-    md.append(el('pre', 'md-preview', d.markdown));
-    inner.append(md);
-    if (d.markdown_truncated) inner.append(el('p', 'section-footer', t('mdTruncated')));
-
+  function collapsible(d, index, many, wrap, body, inner, made) {
     if (!many) {
       wrap.append(body);
       return wrap;
@@ -968,7 +1035,10 @@
     const tile = el('span', 'tile tile-blue');
     tile.append(icon('stack'));
     const label = el('span', 'row-label');
-    label.append(named('span', '', d.name), el('small', '', [H.i18n.plural('pages', d.pages), H.i18n.plural('pictures', d.images.length), H.i18n.plural('tables', d.tables.length)].join(' · ')));
+    const counts = [H.i18n.plural('pages', d.pages)];
+    if (made.includes('images')) counts.push(H.i18n.plural('pictures', d.images.length));
+    if (made.includes('tables')) counts.push(H.i18n.plural('tables', d.tables.length));
+    label.append(named('span', '', d.name), el('small', '', counts.join(' · ')));
     head.append(tile, label, icon('chev', 'chev'));
     const headGroup = el('div', 'group doc-head-group');
     headGroup.append(head);

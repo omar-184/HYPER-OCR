@@ -114,20 +114,47 @@
         <span class="row-label" data-i18n="setLangs"></span>
         <span class="row-value"><span id="langs-value"></span><svg class="chev"><use href="#i-chev"/></svg></span>
       </button>
+      <label class="row">
+        <span class="tile tile-indigo"><svg><use href="#i-text"/></svg></span>
+        <span class="row-label"><span data-i18n="setOwnText"></span><small data-i18n="setOwnTextSub"></small></span>
+        <input type="checkbox" class="switch" id="opt-own-text" role="switch" checked>
+      </label>
     </div>
     <p class="section-footer status" id="engine-status" role="status"></p>
   </section>
 
   <section class="section reveal" id="sec-output" aria-labelledby="h-output">
     <h2 class="section-header" id="h-output" data-i18n="outputHeader"></h2>
-    <div class="group">
+    <div class="group" id="outputs">
+      <label class="row">
+        <span class="tile tile-red"><svg><use href="#i-doc"/></svg></span>
+        <span class="row-label" data-i18n="outPdf"></span>
+        <input type="checkbox" class="switch" data-output="pdf" role="switch" checked>
+      </label>
+      <label class="row">
+        <span class="tile tile-gray"><svg><use href="#i-text"/></svg></span>
+        <span class="row-label" data-i18n="outMarkdown"></span>
+        <input type="checkbox" class="switch" data-output="markdown" role="switch" checked>
+      </label>
+      <label class="row">
+        <span class="tile tile-blue"><svg><use href="#i-photo"/></svg></span>
+        <span class="row-label" data-i18n="outImages"></span>
+        <input type="checkbox" class="switch" data-output="images" role="switch" checked>
+      </label>
+      <label class="row">
+        <span class="tile tile-green"><svg><use href="#i-table"/></svg></span>
+        <span class="row-label" data-i18n="outTables"></span>
+        <input type="checkbox" class="switch" data-output="tables" role="switch" checked>
+      </label>
+    </div>
+    <p class="section-footer" id="output-footer"></p>
+    <div class="group" id="furniture-group">
       <label class="row">
         <span class="tile tile-orange"><svg><use href="#i-text"/></svg></span>
         <span class="row-label" data-i18n="optFurniture"></span>
         <input type="checkbox" class="switch" id="opt-furniture" role="switch" checked>
       </label>
     </div>
-    <p class="section-footer" data-i18n="outputFooter"></p>
   </section>
 
   <div class="start reveal" id="start-wrap">

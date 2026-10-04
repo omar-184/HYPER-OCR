@@ -274,6 +274,25 @@ def page_text_kind(page: pymupdf.Page) -> str:
     Counting characters alone mistook a scan with a 30-character fax header for a
     born-digital page and left the whole scan without OCR.
     """
+    visible, invisible, text_area = _text_counts(page)
+    if visible > 20:
+        if not _is_scan(page, text_area):
+            return "visible"
+        return "visible" if invisible else "stamped"   # a stamped scan with its own OCR layer stays as it is
+    if invisible:
+        return "invisible"
+    return "none"
+
+
+def born_digital(page: pymupdf.Page) -> bool:
+    """The page's text is its own, made on a computer, and can be used as it is: real (visible)
+    text, not a scan with a stamp on it, and no hidden OCR layer of some other program on top."""
+    visible, invisible, text_area = _text_counts(page)
+    return visible > 20 and invisible <= 0.05 * visible and not _is_scan(page, text_area)
+
+
+def _text_counts(page: pymupdf.Page) -> tuple[int, int, float]:
+    """Characters of visible and of invisible text on the page, and the area the visible text covers."""
     visible = invisible = 0
     text_area = 0.0
     for span in page.get_texttrace():
@@ -283,13 +302,7 @@ def page_text_kind(page: pymupdf.Page) -> str:
         else:
             visible += n
             text_area += pymupdf.Rect(span["bbox"]).get_area()
-    if visible > 20:
-        if not _is_scan(page, text_area):
-            return "visible"
-        return "visible" if invisible else "stamped"   # a stamped scan with its own OCR layer stays as it is
-    if invisible:
-        return "invisible"
-    return "none"
+    return visible, invisible, text_area
 
 
 def _is_scan(page: pymupdf.Page, text_area: float) -> bool:

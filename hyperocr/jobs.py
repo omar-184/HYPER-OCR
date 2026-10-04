@@ -72,11 +72,14 @@ class Job:
                     "name": o.name, "title": o.title, "folder": o.folder.name, "pages": o.pages, "words": o.words,
                     "images": [prefix + p for p in o.images],
                     "tables": [dict(t, file=prefix + t["file"]) for t in o.tables],
-                    "warnings": o.warnings, "pdf": prefix + o.pdf_file, "markdown_file": prefix + o.md_file,
+                    "warnings": o.warnings, "outputs": o.outputs,
+                    "pdf": prefix + o.pdf_file if o.pdf_file else "",
+                    "markdown_file": prefix + o.md_file if o.md_file else "",
                     "markdown": o.markdown[:60000], "markdown_truncated": len(o.markdown) > 60000,
                 })
             data["result"] = {
                 "engine": out.engine, "seconds": out.seconds, "zip": out.zip_path.name, "warnings": out.warnings,
+                "outputs": list(self.options.outputs),
                 "documents": docs,
                 "totals": {k: sum(len(d[k]) if isinstance(d[k], list) else d[k] for d in docs)
                            for k in ("pages", "words", "images", "tables")},

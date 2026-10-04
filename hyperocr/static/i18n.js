@@ -76,14 +76,29 @@
       en: 'NVIDIA GPU found ({detail}), but the Unlimited-OCR model isn’t downloaded yet. Run “download-model” once, then restart. Until then Tesseract reads the pages.',
       ar: 'تم العثور على بطاقة NVIDIA ‏({detail}) لكن نموذج Unlimited-OCR لم يُنزَّل بعد. شغّل «download-model» مرة واحدة ثم أعد التشغيل. حتى ذلك الحين يقرأ Tesseract الصفحات.',
     },
+    setOwnText: { en: 'Use the PDF’s Own Text', ar: 'استخدام النص الموجود في ملف PDF' },
+    setOwnTextSub: {
+      en: 'Pages made on a computer are taken as they are: exact, and far faster. Scanned pages are still read.',
+      ar: 'تُؤخذ الصفحات المُنشأة على الحاسوب كما هي: بدقة تامة وبسرعة أكبر بكثير. وتُقرأ الصفحات الممسوحة ضوئياً كالمعتاد.',
+    },
     st_checking: { en: 'Checking this computer…', ar: 'جارٍ فحص هذا الجهاز…' },
 
     outputHeader: { en: 'Output', ar: 'الملفات الناتجة' },
-    optFurniture: { en: 'Leave page headers, footers and numbers out of the Markdown', ar: 'استبعاد ترويسة الصفحة وتذييلها وأرقامها من ملف Markdown' },
-    outputFooter: {
-      en: 'You get one ZIP: a searchable PDF, a Markdown file, an Images folder and a Tables folder with one Word file per table, each with a picture of the original table to check the numbers against.',
-      ar: 'تحصل على ملف ZIP واحد: PDF قابل للبحث وملف Markdown ومجلد Images للصور ومجلد Tables فيه ملف Word لكل جدول، مع صورة الجدول الأصلي لمطابقة الأرقام عليها.',
+    outPdf: { en: 'Searchable PDF', ar: 'PDF قابل للبحث' },
+    outMarkdown: { en: 'Markdown File', ar: 'ملف Markdown' },
+    outImages: { en: 'Pictures and Figures', ar: 'الصور والأشكال' },
+    outTables: { en: 'Tables as Word Files', ar: 'الجداول كملفات Word' },
+    // The footer lists what is switched on: "You get one ZIP: a, b and c."
+    outputFooter: { en: 'You get one ZIP: {list}.', ar: 'تحصل على ملف ZIP واحد: {list}.' },
+    outputOne: { en: 'Keep at least one switched on.', ar: 'أبقِ واحداً منها على الأقل مُفعّلاً.' },
+    out_pdf: { en: 'a searchable PDF', ar: 'PDF قابل للبحث' },
+    out_markdown: { en: 'a Markdown file', ar: 'ملف Markdown' },
+    out_images: { en: 'an Images folder', ar: 'مجلد Images للصور' },
+    out_tables: {
+      en: 'a Tables folder with one Word file per table, each with a picture of the original table to check the numbers against',
+      ar: 'مجلد Tables فيه ملف Word لكل جدول، مع صورة الجدول الأصلي لمطابقة الأرقام عليها',
     },
+    optFurniture: { en: 'Leave page headers, footers and numbers out of the Markdown', ar: 'استبعاد ترويسة الصفحة وتذييلها وأرقامها من ملف Markdown' },
     start: { en: 'Convert', ar: 'تحويل' },
     startHint: { en: 'Choose a file first.', ar: 'اختر ملفاً أولاً.' },
 
@@ -135,8 +150,10 @@
       ar: 'طابِق كل رقم مع الأصل قبل استخدامه، بما في ذلك النص المنسوخ من ملف PDF القابل للبحث. يحتوي كل ملف Word لجدول على صورة الجدول الأصلي لهذا الغرض.',
     },
     doneSub: { en: '{files} · read by {engine} in {time}', ar: '{files} · بواسطة {engine} خلال {time}' },
+    doneSubOwnText: { en: '{files} · taken from the PDF’s own text in {time}', ar: '{files} · من النص الموجود في PDF خلال {time}' },
     seconds: { en: '{n}\u00a0s', ar: '{n}\u00a0ث' },
     minutes: { en: '{m}\u00a0min {s}\u00a0s', ar: '{m}\u00a0د {s}\u00a0ث' },
+    hours: { en: '{h}\u00a0h {m}\u00a0min', ar: '{h}\u00a0س {m}\u00a0د' },
     statPages: { en: 'Pages', ar: 'صفحات' },
     statWords: { en: 'Words', ar: 'كلمات' },
     statImages: { en: 'Pictures', ar: 'صور' },
@@ -161,6 +178,14 @@
     w_turned: { en: 'Pages {pages} were upside down or sideways, so they were turned upright.', ar: 'كانت الصفحات {pages} مقلوبة أو على جوانبها، فأُديرت إلى وضعها الصحيح.' },
     w_keptText_one: { en: 'Page {pages} already had its own text, so it was kept as it is.', ar: 'الصفحة {pages} تحتوي على نص أصلاً، لذلك تُرك كما هو.' },
     w_keptText: { en: 'Pages {pages} already had their own text, so it was kept as it is.', ar: 'الصفحات {pages} تحتوي على نص أصلاً، لذلك تُرك كما هو.' },
+    w_ownText_one: {
+      en: 'Page {pages} was made on a computer, so its own text was used instead of reading the page picture.',
+      ar: 'الصفحة {pages} مُنشأة على الحاسوب، لذلك استُخدم نصها الأصلي بدلاً من قراءة صورة الصفحة.',
+    },
+    w_ownText: {
+      en: 'Pages {pages} were made on a computer, so their own text was used instead of reading the page pictures.',
+      ar: 'الصفحات {pages} مُنشأة على الحاسوب، لذلك استُخدم نصها الأصلي بدلاً من قراءة صور الصفحات.',
+    },
     w_noText_one: { en: 'No text was found on page {pages}. If it does have text, try Small Print.', ar: 'لم يُعثر على نص في الصفحة {pages}. إذا كانت تحتوي على نص فجرّب دقة «للخط الصغير».' },
     w_noText: { en: 'No text was found on pages {pages}. If they do have text, try Small Print.', ar: 'لم يُعثر على نص في الصفحات {pages}. إذا كانت تحتوي على نص فجرّب دقة «للخط الصغير».' },
 

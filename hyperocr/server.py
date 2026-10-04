@@ -12,7 +12,7 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, request, send_file, send_from_directory
 
 from . import __version__, engines, inputs
-from .engines.base import Options
+from .engines.base import OUTPUTS, Options
 from .jobs import JobManager
 from .paths import APP_ROOT, FROZEN, no_window
 
@@ -268,4 +268,12 @@ def _options(raw: dict, info: dict) -> Options:
         dpi=dpi if dpi in (200, 300, 400) else 300,
         skip_furniture=bool(raw.get("skip_furniture", True)),
         ui_lang="ar" if raw.get("ui_lang") == "ar" else "en",
+        own_text=raw.get("own_text", True) is not False,
+        outputs=_outputs(raw.get("outputs")),
     )
+
+
+def _outputs(raw) -> tuple[str, ...]:
+    """The files asked for, in the usual order; all of them when none (or nothing valid) is."""
+    asked = {o for o in raw if isinstance(o, str)} if isinstance(raw, list) else set()
+    return tuple(o for o in OUTPUTS if o in asked) or OUTPUTS

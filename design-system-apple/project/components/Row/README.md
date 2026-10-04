@@ -5,7 +5,7 @@ One line of a grouped list: an optional 28px icon tile, a label (with an optiona
 **Use** inside a `group`. The page provides the label, and per variant:
 - **Picker** (`label.row` + `.row-value.select`): a native `<select>` styled as a trailing value with an up-down glyph.
 - **Disclosure** (`button.row`): a value and a `chev` that opens a sheet.
-- **Switch** (`label.row` + `input.switch`): see Switch.
+- **Switch** (`label.row` + `input.switch`): see Switch. A subtitle under the label (`.row-label small`) says what the option does when the label alone can't ("Use the PDF’s Own Text": "Pages made on a computer are taken as they are: exact, and far faster. Scanned pages are still read.").
 - **Checkmark** (`button.row.lang-option`, `role="checkbox"`): a `check` in `link` that pops in with a bounce when `aria-checked="true"`; native names as a subtitle in `<bdi>`.
 - **Download** (`a.row.file-row`): a red/grey/green tile, the file kind, the file name as a subtitle, a `down` glyph in `link`.
 - **Action** (`button.row.row-action`): a plain `plus` and a `link` label.

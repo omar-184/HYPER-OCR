@@ -6,5 +6,5 @@ A rounded banner with a leading glyph that reports an error, a warning or a note
 
 - `notice error`: whole text in `red-text`, `warn` glyph; `role="alert"`.
 - `notice warn`: text in `label`, `warn` glyph in `orange` (2.0:1 in light: the text carries the meaning).
-- `notice info`: `info` glyph in `link`.
+- `notice info`: `info` glyph in `link`. For good news about the result, such as pages whose own text was used ("Pages 1–2,831 were made on a computer, so their own text was used instead of reading the page pictures."). Page lists give runs of three or more as a range.
 - `surface`, `radius-group`, 12×16px padding, `subheadline` style, 12px above.

@@ -10,6 +10,8 @@ import numpy as np
 from ..document import PageResult
 
 Progress = Callable[[str], None]   # receives a short stage key, e.g. "loading-model"
+# The files a conversion can make: searchable PDF, Markdown, Images/ (pictures), Tables/ (Word).
+OUTPUTS = ("pdf", "markdown", "images", "tables")
 
 
 @dataclass
@@ -19,6 +21,8 @@ class Options:
     dpi: int = 300
     skip_furniture: bool = True              # leave running headers, footers and page numbers out of Markdown
     ui_lang: str = "en"                      # language for labels inside the Word files
+    own_text: bool = True                    # pages made on a computer: use their own text, no OCR
+    outputs: tuple[str, ...] = OUTPUTS       # which files to make (at least one)
 
 
 @dataclass

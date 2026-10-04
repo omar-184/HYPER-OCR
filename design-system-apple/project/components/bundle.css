@@ -149,6 +149,7 @@ button.row:active, a.row:active, label.row:has(select):active { background: var(
 .segmented button[aria-checked="true"] { font-weight: 600; }
 .segmented button:active { transform: scale(.96); }
 .mode-wrap { margin-top: 18px; }
+.section-footer + .group { margin-top: 24px; }   /* a second group in one section, under the first one's footer */
 
 /* ------------------------------------------------------------ buttons */
 
@@ -304,7 +305,7 @@ button.row:active, a.row:active, label.row:has(select):active { background: var(
 .done-text { min-width: 0; }
 .done-title { margin: 0; font: 700 28px/1.15 var(--font-display); letter-spacing: -0.024em; }
 .done-sub { margin: 3px 0 0; font-size: 15px; color: var(--label-2); }
-.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.stats { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr)); gap: 8px; }
 .stat { padding: 12px 12px 10px; border-radius: 12px; background: var(--fill-4); }
 .stat-num { font: 700 26px/1.1 var(--font-rounded); letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
 .stat-label { margin-top: 2px; font-size: 13px; color: var(--label-2); }

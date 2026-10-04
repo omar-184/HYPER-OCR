@@ -32,9 +32,11 @@ My scan_HYPER-OCR.zip
         └── Table-01_page-002.docx  one Word file per table
 ```
 
+That is everything; under *Output* you can switch off what you don't need, and the ZIP holds only the rest (with only the Markdown switched on, just `My scan.md`).
+
 Convert several files **each separately** and the ZIP holds one such folder per file, named `HYPER-OCR_3-documents.zip` for three files. **Combine into one** makes a single document from all of them, in the order you set, named after the first file (`IMG_001_combined`).
 
-The Markdown links to its pictures (`![Figure 1 …](Images/page-001_figure-01.png)`) and to each table's Word file, so the folder works as a whole when you unzip it.
+The Markdown links to its pictures (`![Figure 1 …](Images/page-001_figure-01.png)`) and to each table's Word file, so the folder works as a whole when you unzip it. Without the pictures or the Word tables, it has no such links; the tables themselves are always in it.
 
 Each Word table keeps merged cells, and repeats its header row on every printed page. Arabic tables run right to left. Each file also has the table's caption, the page it came from, a warning that the numbers are unverified and, always, a picture of the original table to check them against.
 
@@ -93,11 +95,18 @@ On macOS and Linux, setup installs the Tesseract your package manager offers and
    - *Engine*: **Automatic** is Tesseract. (The experimental GPU engine is off; see [The OCR engine](#the-ocr-engine).)
    - *Resolution*: 300 dpi suits most scans. Choose 400 dpi for tiny print, or 200 dpi for speed.
    - *Languages*: tick every language that appears. Tesseract reads only the languages you tick. Until you choose, the English interface ticks English only (Arabic would slow English documents down and add misreads) and the Arabic interface ticks Arabic and English.
-   - *Output*: leave page headers, footers and page numbers out of the Markdown. (Every Word table always includes a picture of the original table.)
-4. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time. Reloading the page, or the browser losing touch with the app for a moment, doesn't stop the conversion: the page finds it again, and its results, for as long as they are kept (one hour).
-5. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table. When you converted several files separately, tap a file to open its results.
+   - *Use the PDF's Own Text* (on): a page made on a computer (exported from Word, a publisher's e-book) already holds its text exactly. HYPER-OCR takes it as it is instead of reading the page picture: exact, and far faster (a textbook page in about 0.3 s instead of 2.4 s; see [Pages made on a computer](#pages-made-on-a-computer)). Scanned pages are read as before. Turn it off if a PDF's text comes out garbled.
+4. **Output.** Switch on the files you want; at least one stays on:
+   - **Searchable PDF**;
+   - **Markdown File**, with *leave page headers, footers and page numbers out of the Markdown*;
+   - **Pictures and Figures** (the `Images` folder);
+   - **Tables as Word Files** (the `Tables` folder). Every Word table always includes a picture of the original table.
 
-The **ⓘ** button opens **About**: the version, **Software Update**, Automatic / Light / Dark appearance, and what this computer can run. Your choices (appearance, language, engine, resolution, languages, mode) are remembered in this browser.
+   Tables are in the Markdown whether or not the Word files are made.
+5. **Convert.** The card shows the page being scanned, the file it belongs to, and the time left. You can cancel at any time. Reloading the page, or the browser losing touch with the app for a moment, doesn't stop the conversion: the page finds it again, and its results, for as long as they are kept (one hour).
+6. **Your files.** Download the ZIP, or single files: the searchable PDF, the Markdown, each table (those you chose). When you converted several files separately, tap a file to open its results.
+
+The **ⓘ** button opens **About**: the version, **Software Update**, Automatic / Light / Dark appearance, and what this computer can run. Your choices (appearance, language, engine, resolution, languages, own text, outputs, mode) are remembered in this browser.
 
 ![Results in Arabic, dark theme](docs/screenshot-arabic-dark.png)
 
@@ -129,7 +138,7 @@ Updating is the only thing in HYPER-OCR that goes online, and only when you clic
 
 HYPER-OCR reads pages with **Tesseract**, on the computer's processor. Its layout comes from HYPER-OCR's own image analysis: bordered tables (merged cells included), figures, headings and captions.
 
-**How long it takes.** Tesseract reads a page on one processor core, so HYPER-OCR reads several pages side by side: one for every two logical processors (the number Task Manager shows; a 4-core laptop usually has 8, so it reads 4 pages at once), at most 6. On a 4-core computer, a dense two-column textbook page took 8.4 seconds read alone; read four at once, a page came out every 2.4 seconds: at that rate, a 2,800-page textbook takes about 2 hours. Older or smaller laptops take longer. Pages with little text (letters, lab reports) are quicker.
+**How long it takes.** Tesseract reads a page on one processor core, so HYPER-OCR reads several pages side by side: one for every two logical processors (the number Task Manager shows; a 4-core laptop usually has 8, so it reads 4 pages at once), at most 6. On a 4-core computer, a dense two-column textbook page took 8.4 seconds read alone; read four at once, a page came out every 2.4 seconds: at that rate, a 2,800-page textbook takes about 2 hours. Older or smaller laptops take longer. Pages with little text (letters, lab reports) are quicker, and pages made on a computer much quicker: their own text is used, not read (see [Pages made on a computer](#pages-made-on-a-computer)).
 
 - While a conversion runs, Windows doesn't put the computer to sleep (the screen may still turn off). Closing a laptop's lid still does, and the conversion waits until it wakes.
 - The results are written when the last page is done. To have the first chapters sooner, split a book into parts.
@@ -196,8 +205,20 @@ If you installed HYPER-OCR from the zip before version 1.2.0, its `tessdata` fol
    - MuPDF-based readers;
    - Poppler-based readers.
 
-   Born-digital pages (typed text covering the page) keep their own text and are listed in a note on the results screen. A scan with a little real text on it, such as a fax header or a digital stamp, is still a scan: it gets a full OCR layer and keeps the stamp. An old OCR layer is replaced, not doubled.
+   Born-digital pages (typed text covering the page) keep their own text and are listed in a note on the results screen (they are not given a second, OCR copy). A scan with a little real text on it, such as a fax header or a digital stamp, is still a scan: it gets a full OCR layer and keeps the stamp. An old OCR layer is replaced, not doubled.
 5. **Images** are cut out at the scan's own resolution (up to 600 dpi). **Tables** become Word files.
+6. Only the files chosen under *Output* are written; the pages are read the same way whichever are chosen.
+
+### Pages made on a computer
+
+A page whose real text covers it (not a scan with a stamp on it, and not an old OCR layer) is taken from the PDF itself: its words and their positions come from the file, are placed on the rendered page, and go through the same layout analysis as OCR words (headings, paragraphs, bordered tables, figures, captions). Nothing is read by OCR, so the text is exactly the text of the file, ligatures (ﬁ, ﬂ) written out. On a 4-core computer a dense two-column textbook page took 0.3 s this way, against 2.4 s by OCR.
+
+The page is read by OCR as before when its text:
+- is in Arabic (or another right-to-left script): PDFs store such text in many orders, and taken as it is it can come out backwards;
+- doesn't decode (fonts without a character map give replacement or private-use characters);
+- mostly runs sideways (a turned table): OCR turns such a page upright first.
+
+The results screen lists the pages whose own text was used. A whole document with no page read by OCR says "taken from the PDF's own text".
 6. **Markdown**: the blocks are assembled into an HTML document in reading order, and Microsoft MarkItDown converts it to Markdown. Formulas come out as `$…$` and `$$…$$` LaTeX.
 
 ## Limits
