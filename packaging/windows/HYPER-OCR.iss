@@ -1,5 +1,5 @@
 ; Installer of the HYPER-OCR desktop app (Inno Setup 6). Built by tools/build_desktop.py --installer:
-;   ISCC /DAppVersion=1.2.0 /DSourceDir=dist\HYPER-OCR /DOutputDir=dist packaging\windows\HYPER-OCR.iss
+;   ISCC /DAppVersion=1.3.0 /DSourceDir=dist\HYPER-OCR /DOutputDir=dist packaging\windows\HYPER-OCR.iss
 ;
 ; It installs for the current user, in %LOCALAPPDATA%\Programs\HYPER-OCR: no administrator rights,
 ; and the app can update itself and add languages. (IT can install for all users with /ALLUSERS.)
