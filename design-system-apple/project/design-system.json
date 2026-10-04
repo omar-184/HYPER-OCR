@@ -206,8 +206,8 @@
  },
  "lastChange": {
   "by": "Claude",
-  "at": "2026-10-03T03:19:03Z",
+  "at": "2026-10-04T08:15:17Z",
   "via": "Claude Code",
-  "note": "UpdateRow: a failed check names its cause (connection, or GitHub's limit per network)"
+  "note": "ProgressCard: long waits read in hours (\"About 10 h left\"), never \"597 min\""
  }
 }
