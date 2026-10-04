@@ -71,6 +71,11 @@ NUMBER_HEIGHTS = (28, 36, 48, 64)
 DESKEW_FROM = 0.8
 OSD_DPI = 150              # page orientation is read at this resolution: at 100 dpi it guessed wrong
 OSD_MIN_CONF = 3.0         # turned pages measured 6.2-13.8; wrong guesses at 100 dpi were below 0.2
+# Tesseract reads a page on one processor core: its own threads didn't make a dense textbook page
+# faster (5.6 s with one, 5.8 s with four), while four pages read side by side took 6.1 s. So
+# pages are read side by side, one per core: half the logical processors (the other half are
+# the same cores again), at most this many (a page being read holds about 150 MB at 300 dpi).
+MAX_PAGES_AT_ONCE = 6
 
 
 # The Tesseract release the tests pass on; Windows setup installs exactly this build.
@@ -146,6 +151,7 @@ class TesseractEngine(Engine):
 
         if self._cmd is None:
             self._cmd = find_tesseract() or ""
+            os.environ.setdefault("OMP_THREAD_LIMIT", "1")   # see MAX_PAGES_AT_ONCE
             # The app's own language folder (filled by setup) wins over the system's.
             from ..languages import folder, installed
 
@@ -171,6 +177,14 @@ class TesseractEngine(Engine):
                 langs = []
             self._langs = sorted(l for l in langs if l not in ("osd", "equ", "snum"))
         return self._langs
+
+    def pages_at_once(self) -> int:
+        """HYPEROCR_PAGES_AT_ONCE sets it; otherwise see MAX_PAGES_AT_ONCE."""
+        try:
+            wanted = int(os.environ.get("HYPEROCR_PAGES_AT_ONCE", ""))
+        except ValueError:
+            wanted = (os.cpu_count() or 2) // 2
+        return max(1, min(MAX_PAGES_AT_ONCE, wanted))
 
     def page_turn(self, image: np.ndarray, dpi: float) -> int:
         """Degrees (90, 180 or 270) the page must be turned clockwise to stand upright: 0 when it

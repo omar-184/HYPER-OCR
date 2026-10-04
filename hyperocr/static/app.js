@@ -772,7 +772,18 @@
     if (pagesDone < 1) return '';
     const perPage = (now - state.timing.at) / 1000 / pagesDone;
     const left = perPage * (job.pages - job.page + 1);
-    return left >= 90 ? t('etaMinutes', { n: Math.round(left / 60) }) : t('etaSeconds', { n: Math.max(5, Math.round(left / 5) * 5) });
+    return etaText(left);
+  }
+
+  function etaText(seconds) {
+    // Seconds, then minutes, then hours: a long book reads "About 10 h left", not "597 min".
+    if (seconds < 90) return t('etaSeconds', { n: Math.max(5, Math.round(seconds / 5) * 5) });
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 90) return t('etaMinutes', { n: minutes });
+    if (minutes >= 300) return t('etaHours', { n: Math.round(minutes / 60) });
+    const quarters = Math.round(minutes / 15);        // under 5 hours: to the quarter hour
+    const h = Math.floor(quarters / 4), m = (quarters % 4) * 15;
+    return m ? t('etaHoursMinutes', { h, m }) : t('etaHours', { n: h });
   }
 
   $('cancel').addEventListener('click', async () => {

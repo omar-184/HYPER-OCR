@@ -101,6 +101,8 @@
     firstRun: { en: 'The first run takes longer', ar: 'التشغيل الأول يستغرق وقتاً أطول' },
     etaSeconds: { en: 'About {n}\u00a0s left', ar: 'بقي نحو {n}\u00a0ث' },
     etaMinutes: { en: 'About {n}\u00a0min left', ar: 'بقي نحو {n}\u00a0د' },
+    etaHours: { en: 'About {n}\u00a0h left', ar: 'بقي نحو {n}\u00a0س' },
+    etaHoursMinutes: { en: 'About {h}\u00a0h {m}\u00a0min left', ar: 'بقي نحو {h}\u00a0س و{m}\u00a0د' },
     percent: { en: '{n}%', ar: '{n}٪' },
 
     err_notPdf: { en: '“{detail}” couldn’t be opened as a PDF.', ar: 'تعذر فتح «{detail}» كملف PDF.' },

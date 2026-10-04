@@ -174,6 +174,7 @@ class JobManager:
                 self._discard_if_deleted(job)
                 continue
             job.state = "running"
+            stay_awake(True)
             try:
                 job.output = convert_job(job.uploads, job.mode, job.folder, job.options,
                                          lambda d, j=job: self._report(j, d), job.cancel)
@@ -189,6 +190,7 @@ class JobManager:
                 job.detail = "%s: %s" % (type(exc).__name__, exc)
                 traceback.print_exc()
             finally:
+                stay_awake(False)
                 job.finished = time.time()
                 for temp in WORK_FOLDERS:   # originals and page previews are no longer needed
                     shutil.rmtree(job.folder / temp, ignore_errors=True)
@@ -216,6 +218,21 @@ class JobManager:
             if job.finished and now - job.finished > KEEP_SECONDS:
                 self.jobs.pop(job_id, None)
                 shutil.rmtree(job.folder, ignore_errors=True)
+
+
+def stay_awake(on: bool) -> bool:
+    """While a conversion runs, Windows must not put the computer to sleep for being left alone:
+    a book left converting overnight would stop until someone woke the computer. The screen may
+    still turn off, and closing a laptop's lid still puts it to sleep. Applies to the calling
+    thread (the worker) until called again with False. True when Windows took the request."""
+    if sys.platform != "win32":
+        return False
+    import ctypes
+
+    es_continuous, es_system_required = 0x80000000, 0x00000001
+    call = ctypes.windll.kernel32.SetThreadExecutionState
+    call.argtypes, call.restype = [ctypes.c_uint32], ctypes.c_uint32
+    return bool(call(es_continuous | (es_system_required if on else 0)))
 
 
 def remove_stale_folders() -> list[Path]:

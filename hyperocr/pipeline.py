@@ -7,6 +7,8 @@ import threading
 import time
 import unicodedata
 import zipfile
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -171,70 +173,29 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
     width = max(3, len(str(doc.page_count)))
     table_no = 0
 
-    for i in range(doc.page_count):
-        if cancel.is_set():
-            raise Cancelled()
-        page = doc[i]
-        dpi = _page_dpi(page, options.dpi)
-        image = _render(page, dpi)
-        turn = engines.page_turn(image, dpi)
-        if turn:
-            # Upside down or sideways: turn the page itself (its /Rotate; the scan is untouched),
-            # so the searchable PDF shows it upright and everything below reads it upright.
-            page.set_rotation((page.rotation + turn) % 360)
-            image = _render(page, dpi)
-            turned.append(i + 1)
-        update = {"stage": "reading", "page": i + 1, "pages": doc.page_count}
-        if previews is not None:
-            update["preview"] = _save_preview(image, previews, "%s-%04d.jpg" % (preview_prefix, i + 1))
-        report(update)
-        result = engine.process(image, i, dpi, options)
-        if cancel.is_set():
-            raise Cancelled()
-
-        # Images/
-        scan_dpi = img_out.native_dpi(page)
-        figure_no = 0
-        for j, block in enumerate(result.blocks):
-            if block.kind != FIGURE:
-                continue
-            figure_no += 1
-            picture = img_out.crop(page, image, block.box, dpi, scan_dpi)
-            file = img_out.save(picture, out.folder / "Images", "page-%0*d_figure-%02d" % (width, i + 1, figure_no))
-            block.figure_file = "Images/" + file
-            caption = _caption(result.blocks, j)
-            block.text = caption or "Figure %d, page %d" % (figure_no, i + 1)
-            out.images.append(block.figure_file)
-
-        # Tables/
-        for j, block in enumerate(result.blocks):
-            if block.kind != TABLE or not block.html:
-                continue
-            table_no += 1
-            file = "Table-%02d_page-%0*d.docx" % (table_no, width, i + 1)
-            # Always: the picture is what every number in the table must be checked against.
-            snapshot = img_out.png_bytes(img_out.crop(page, image, _pad(block.box, dpi, image), dpi, 0))
-            write_table_docx(
-                out.folder / "Tables" / file, block.html, table_no, i + 1, name,
-                caption=_caption(result.blocks, j), snapshot_png=snapshot, ui_lang=options.ui_lang,
-            )
-            block.table_file = "Tables/" + file
-            grid = parse_table(block.html)
-            out.tables.append({"file": block.table_file, "page": i + 1, "rows": grid.rows, "cols": grid.cols})
-
-        # Searchable text layer
-        existing = page_text_kind(page)
-        if existing == "visible":
-            had_text.append(i + 1)          # born-digital page: its own text is already searchable (warned)
-        else:
-            if existing == "invisible":
-                remove_invisible_text(page)  # replace an older OCR layer
-            writer.add(page, result)         # a stamped scan keeps its stamp and gets OCR like any scan
-        if not result.lines:
-            empty.append(i + 1)
-        out.words += result.word_count
-        pages.append(result)
-        del image
+    reader = _read_pages(doc, engine, options, cancel)
+    try:
+        for i, dpi, image, reading in reader:
+            if cancel.is_set():
+                raise Cancelled()
+            update = {"stage": "reading", "page": i + 1, "pages": doc.page_count}
+            if previews is not None:
+                update["preview"] = _save_preview(image, previews, "%s-%04d.jpg" % (preview_prefix, i + 1))
+            report(update)
+            turn, image, result = reading.result()
+            if cancel.is_set():
+                raise Cancelled()
+            page = doc[i]
+            if turn:
+                # Upside down or sideways: it was read upright; turn the page itself (its /Rotate;
+                # the scan is untouched) so the searchable PDF shows it upright too.
+                page.set_rotation((page.rotation + turn) % 360)
+                turned.append(i + 1)
+            table_no = _page_outputs(page, i, image, dpi, result, out, writer, name, width, table_no, options,
+                                     had_text, empty, pages)
+            del image
+    finally:
+        reader.close()          # stops reading ahead when the conversion stops early
 
     if turned:
         out.warnings.append({"key": "turned", "pages": turned})
@@ -262,6 +223,99 @@ def _convert_document(pdf_path: Path, stem: str, name: str, work: Path, options:
     (out.folder / out.md_file).write_text(out.markdown, encoding="utf-8")
     out.seconds = round(time.time() - started, 1)
     return out
+
+
+def _page_outputs(page: pymupdf.Page, i: int, image: np.ndarray, dpi: int, result: PageResult, out: Output,
+                  writer: TextLayerWriter, name: str, width: int, table_no: int, options: Options,
+                  had_text: list[int], empty: list[int], pages: list[PageResult]) -> int:
+    """One page's pictures, tables and searchable text; returns the number of tables so far."""
+    # Images/
+    scan_dpi = img_out.native_dpi(page)
+    figure_no = 0
+    for j, block in enumerate(result.blocks):
+        if block.kind != FIGURE:
+            continue
+        figure_no += 1
+        picture = img_out.crop(page, image, block.box, dpi, scan_dpi)
+        file = img_out.save(picture, out.folder / "Images", "page-%0*d_figure-%02d" % (width, i + 1, figure_no))
+        block.figure_file = "Images/" + file
+        caption = _caption(result.blocks, j)
+        block.text = caption or "Figure %d, page %d" % (figure_no, i + 1)
+        out.images.append(block.figure_file)
+
+    # Tables/
+    for j, block in enumerate(result.blocks):
+        if block.kind != TABLE or not block.html:
+            continue
+        table_no += 1
+        file = "Table-%02d_page-%0*d.docx" % (table_no, width, i + 1)
+        # Always: the picture is what every number in the table must be checked against.
+        snapshot = img_out.png_bytes(img_out.crop(page, image, _pad(block.box, dpi, image), dpi, 0))
+        write_table_docx(
+            out.folder / "Tables" / file, block.html, table_no, i + 1, name,
+            caption=_caption(result.blocks, j), snapshot_png=snapshot, ui_lang=options.ui_lang,
+        )
+        block.table_file = "Tables/" + file
+        grid = parse_table(block.html)
+        out.tables.append({"file": block.table_file, "page": i + 1, "rows": grid.rows, "cols": grid.cols})
+
+    # Searchable text layer
+    existing = page_text_kind(page)
+    if existing == "visible":
+        had_text.append(i + 1)          # born-digital page: its own text is already searchable (warned)
+    else:
+        if existing == "invisible":
+            remove_invisible_text(page)  # replace an older OCR layer
+        writer.add(page, result)         # a stamped scan keeps its stamp and gets OCR like any scan
+    if not result.lines:
+        empty.append(i + 1)
+    out.words += result.word_count
+    pages.append(result)
+    return table_no
+
+
+class _Later:
+    """A page read when its result is asked for: engines that read one page at a time."""
+
+    def __init__(self, read, *args):
+        self.read, self.args = read, args
+
+    def result(self):
+        return self.read(*self.args)
+
+
+def _read_pages(doc: pymupdf.Document, engine, options: Options, cancel: threading.Event):
+    """Every page in order, as (index, dpi, image as rendered, reading); reading.result() gives
+    (turn, upright image, PageResult). An engine that can read several pages at once (Tesseract:
+    one per processor core) reads the next ones while a page is written. Pages are rendered
+    here, on the conversion's own thread: PyMuPDF must not be used from several threads."""
+    at_once = max(1, engine.pages_at_once())
+    pool = ThreadPoolExecutor(at_once, thread_name_prefix="hyperocr-page") if at_once > 1 else None
+    ahead: deque = deque()
+    following = 0
+    try:
+        for _ in range(doc.page_count):
+            # One more than are read at once, so a reader is never idle while a page is written.
+            while following < doc.page_count and len(ahead) < (at_once + 1 if pool else 1):
+                if cancel.is_set():
+                    raise Cancelled()
+                page = doc[following]
+                dpi = _page_dpi(page, options.dpi)
+                image = _render(page, dpi)
+                args = (engine, image, following, dpi, options)
+                ahead.append((following, dpi, image, pool.submit(_read_page, *args) if pool else _Later(_read_page, *args)))
+                following += 1
+            yield ahead.popleft()
+    finally:
+        if pool is not None:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+
+def _read_page(engine, image: np.ndarray, index: int, dpi: int, options: Options):
+    turn = engines.page_turn(image, dpi)
+    if turn:
+        image = np.ascontiguousarray(np.rot90(image, k=-(turn // 90)))   # turned clockwise
+    return turn, image, engine.process(image, index, dpi, options)
 
 
 def _save_preview(image: np.ndarray, folder: Path, name: str) -> str:

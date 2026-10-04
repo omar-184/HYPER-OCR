@@ -50,3 +50,7 @@ class Engine:
     def process(self, image: np.ndarray, index: int, dpi: float, options: Options) -> PageResult:
         """OCR one page image (RGB, uint8)."""
         raise NotImplementedError
+
+    def pages_at_once(self) -> int:
+        """How many pages this engine can read at the same time (each from its own thread)."""
+        return 1

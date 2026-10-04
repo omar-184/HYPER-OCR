@@ -268,3 +268,93 @@ def test_a_tilted_scan_still_gives_the_right_table(tmp_path, angle):
                      ["Day 2", "88", "57.9", "5.3"], ["Day 3+", "56", "61.4", "7.8"]]
     pdf = pymupdf.open(out.folder / out.pdf_file)
     assert pdf[0].search_for("Mobilisation") and pdf[1].search_for("Baseline")
+
+
+class SideBySide(engines.base.Engine):
+    """A stand-in engine that takes a moment per page and notes how many it was reading at once."""
+
+    id, name = "tesseract", "stand-in"
+
+    def __init__(self, at_once: int, stop_after: int = 0, cancel=None):
+        import threading
+
+        self.at_once, self.stop_after, self.cancel = at_once, stop_after, cancel
+        self.lock, self.now, self.most, self.read = threading.Lock(), 0, 0, []
+
+    def availability(self):
+        return Availability(True)
+
+    def pages_at_once(self):
+        return self.at_once
+
+    def process(self, image, index, dpi, options):
+        import time
+
+        from hyperocr.document import TEXT, Block, Line, PageResult, Word
+
+        with self.lock:
+            self.now += 1
+            self.most = max(self.most, self.now)
+            self.read.append(index)
+        time.sleep(0.3)
+        with self.lock:
+            self.now -= 1
+        if self.cancel is not None and index + 1 == self.stop_after:
+            self.cancel.set()                      # as if Cancel was pressed while this page was read
+        h, w = image.shape[:2]
+        box = (w * 0.1, h * 0.1, w * 0.6, h * 0.15)
+        text = "Page %d" % (index + 1)
+        return PageResult(index, w, h, dpi, self.id, blocks=[Block(TEXT, box, text)],
+                          lines=[Line(box, text, [Word(box, text)])])
+
+
+def _pages_pdf(tmp_path, n):
+    doc = pymupdf.open()
+    for i in range(n):
+        doc.new_page(width=300, height=400).insert_text((40, 60), "Page %d" % (i + 1))
+    path = tmp_path / ("%d-pages.pdf" % n)
+    doc.save(path)
+    return path
+
+
+def test_pages_are_read_side_by_side_and_come_out_in_order(tmp_path, monkeypatch):
+    engine = SideBySide(at_once=3)
+    monkeypatch.setattr(engines, "choose", lambda options: (engine, None))
+    monkeypatch.setattr(engines, "page_turn", lambda image, dpi: 0)
+    seen = []
+    out = convert(_pages_pdf(tmp_path, 8), tmp_path / "out", Options(engine="tesseract", dpi=72), seen.append)
+    assert engine.most == 3                                  # three pages were being read at a time
+    assert [d["page"] for d in seen if d["stage"] == "reading"] == list(range(1, 9))
+    assert [line for line in out.markdown.splitlines() if line.startswith("Page")] == ["Page %d" % n for n in range(1, 9)]
+    pdf = pymupdf.open(out.folder / out.pdf_file)
+    assert all(pdf[n].search_for("Page %d" % (n + 1)) for n in range(8))
+
+
+def test_stopping_a_conversion_stops_reading_ahead(tmp_path, monkeypatch):
+    import threading
+
+    from hyperocr.pipeline import Cancelled
+
+    cancel = threading.Event()
+    engine = SideBySide(at_once=2, stop_after=3, cancel=cancel)
+    monkeypatch.setattr(engines, "choose", lambda options: (engine, None))
+    monkeypatch.setattr(engines, "page_turn", lambda image, dpi: 0)
+    with pytest.raises(Cancelled):
+        convert(_pages_pdf(tmp_path, 20), tmp_path / "out", Options(engine="tesseract", dpi=72), lambda d: None,
+                cancel=cancel)
+    import time
+
+    time.sleep(1.0)                          # pages already started finish; no new ones begin
+    assert len(engine.read) <= 6, engine.read
+
+
+def test_tesseract_reads_one_page_per_processor_core(monkeypatch):
+    from hyperocr.engines.tesseract_engine import MAX_PAGES_AT_ONCE, TesseractEngine
+
+    engine = TesseractEngine()
+    monkeypatch.delenv("HYPEROCR_PAGES_AT_ONCE", raising=False)
+    for logical, expected in ((1, 1), (2, 1), (4, 2), (8, 4), (32, MAX_PAGES_AT_ONCE)):
+        monkeypatch.setattr("os.cpu_count", lambda logical=logical: logical)
+        assert engine.pages_at_once() == expected, logical
+    monkeypatch.setenv("HYPEROCR_PAGES_AT_ONCE", "1")
+    assert engine.pages_at_once() == 1

@@ -127,7 +127,13 @@ Updating is the only thing in HYPER-OCR that goes online, and only when you clic
 
 ## The OCR engine
 
-HYPER-OCR reads pages with **Tesseract**, on the computer's processor: 2 to 5 seconds a page on a laptop. Its layout comes from HYPER-OCR's own image analysis: bordered tables (merged cells included), figures, headings and captions.
+HYPER-OCR reads pages with **Tesseract**, on the computer's processor. Its layout comes from HYPER-OCR's own image analysis: bordered tables (merged cells included), figures, headings and captions.
+
+**How long it takes.** Tesseract reads a page on one processor core, so HYPER-OCR reads several pages side by side: one for every two logical processors (the number Task Manager shows; a 4-core laptop usually has 8, so it reads 4 pages at once), at most 6. On a 4-core computer, a dense two-column textbook page took 8.4 seconds read alone; read four at once, a page came out every 2.4 seconds: at that rate, a 2,800-page textbook takes about 2 hours. Older or smaller laptops take longer. Pages with little text (letters, lab reports) are quicker.
+
+- While a conversion runs, Windows doesn't put the computer to sleep (the screen may still turn off). Closing a laptop's lid still does, and the conversion waits until it wakes.
+- The results are written when the last page is done. To have the first chapters sooner, split a book into parts.
+- To leave the processor free for other work, set `HYPEROCR_PAGES_AT_ONCE=1` (one page at a time) before starting HYPER-OCR.
 
 **Unlimited-OCR (Baidu) is experimental and switched off.** On graphics cards that can't really run its 3-billion-parameter model, it looked available and *Automatic* chose it, so conversions never finished. Setup no longer offers it and the app doesn't show it. It can only be switched on by hand, for testing on a capable NVIDIA card:
 

@@ -84,3 +84,27 @@ def test_a_file_named_like_a_working_folder_keeps_its_results(name):
     from hyperocr.pipeline import safe_stem
 
     assert not safe_stem(name).startswith("_") and safe_stem(name) not in jobs.WORK_FOLDERS
+
+
+def test_the_computer_stays_awake_while_a_conversion_runs(tmp_path, monkeypatch):
+    """A long book must not stop because Windows put the computer to sleep halfway."""
+    calls = []
+    monkeypatch.setattr(jobs, "stay_awake", calls.append)
+
+    def convert(uploads, mode, folder, options, report, cancel):
+        calls.append("converting")
+        raise jobs.Cancelled()
+
+    monkeypatch.setattr(jobs, "convert_job", convert)
+    manager = jobs.JobManager(tmp_path / "jobs")
+    job = manager.start(manager.create(Options()))
+    for _ in range(200):
+        if job.state == "cancelled":
+            break
+        time.sleep(0.05)
+    assert calls == [True, "converting", False]
+
+
+def test_asking_windows_to_stay_awake():
+    assert jobs.stay_awake(True) is (sys.platform == "win32")      # Windows takes the request
+    jobs.stay_awake(False)
