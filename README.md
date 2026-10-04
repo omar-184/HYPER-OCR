@@ -130,7 +130,7 @@ What an update does:
 
 The GPU packages are never downloaded unless the experimental GPU engine is switched on.
 
-**Publishing a release (for the maintainer).** Set the version in `hyperocr/__init__.py` (and `pyproject.toml`), commit, and push a tag `v<version>` on that commit (`git tag v1.2.0 && git push origin v1.2.0`, or create the tag when drafting a release on GitHub). GitHub then runs every test on Linux and Windows, builds the installer, installs and checks it, and publishes the release with four files: `HYPER-OCR-<version>.zip`, `HYPER-OCR-Setup-<version>.exe` and a `.sha256` for each. Nothing reaches users before that. (`python tools/make_release.py` still builds the zip by hand.)
+**Publishing a release (for the maintainer).** Set the version in `hyperocr/__init__.py` (and `pyproject.toml`), commit, and push a tag `v<version>` on that commit (`git tag v1.3.0 && git push origin v1.3.0`), or run the *Tests and Windows app* workflow by hand (Actions → Run workflow) with *publish* ticked, which tags that commit itself. Its release notes come from `.github/release-notes/v<version>.md` when there is one. GitHub then runs every test on Linux and Windows, builds the installer, installs and checks it, and publishes the release with four files: `HYPER-OCR-<version>.zip`, `HYPER-OCR-Setup-<version>.exe` and a `.sha256` for each. Nothing reaches users before that. (`python tools/make_release.py` still builds the zip by hand.)
 
 Updating is the only thing in HYPER-OCR that goes online, and only when you click it. It runs as a separate program; the converter itself stays offline. The app is started by a small supervisor, so after an update it comes back on its own at the same address.
 
